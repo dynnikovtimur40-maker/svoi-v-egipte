@@ -2225,7 +2225,7 @@ class _ListTabState extends State<ListTab> {
               maxCrossAxisExtent: 230,
               mainAxisSpacing: 16,
               crossAxisSpacing: 12,
-              childAspectRatio: .62,
+              childAspectRatio: .64,
             ),
             delegate: SliverChildBuilderDelegate((_, i) => PostTile(post: items[i]), childCount: items.length),
           ),
@@ -2371,7 +2371,7 @@ class PostTile extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: 13.5, color: p.text2, height: 1.3, fontWeight: FontWeight.w500)),
-        const Spacer(),
+        const SizedBox(height: 4),
         Row(children: [
           Expanded(
             child: Text('${post.city} · ${dateText(post.date)}',
@@ -2991,7 +2991,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
                       child: Field(
                         label: 'Цена, EGP',
                         controller: price,
-                        hint: 'Пусто — договорная',
+                        hint: 'Договорная',
                         keyboard: TextInputType.number,
                       ),
                     ),
