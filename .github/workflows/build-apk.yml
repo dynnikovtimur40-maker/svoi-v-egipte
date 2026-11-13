@@ -13,7 +13,7 @@ jobs:
       - name: Arrange files
         run: |
           mkdir -p lib supabase
-          for f in main.dart data.dart config.dart; do [ -f "$f" ] && mv "$f" lib/; done
+          for f in *.dart; do mv "$f" lib/; done
           [ -f schema.sql ] && mv schema.sql supabase/ || true
 
       - uses: actions/setup-java@v4
@@ -42,6 +42,13 @@ jobs:
           fi
 
       - run: flutter pub get
+
+      - name: Analyze
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings lib > analyze.txt 2>&1 || true
+          cat analyze.txt
+          grep -E '^ *error' analyze.txt | head -45 | while IFS= read -r l; do echo "::error::$l"; done
+          ! grep -qE '^ *error' analyze.txt
 
       - run: flutter build apk --release
 

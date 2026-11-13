@@ -23,7 +23,7 @@ jobs:
       - name: Arrange files
         run: |
           mkdir -p lib supabase
-          for f in main.dart data.dart config.dart; do [ -f "$f" ] && mv "$f" lib/; done
+          for f in *.dart; do mv "$f" lib/; done
           [ -f schema.sql ] && mv schema.sql supabase/ || true
 
       - uses: subosito/flutter-action@v2

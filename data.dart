@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'config.dart';
+import 'i18n.dart';
+
 enum Section { ads, services, jobs }
 
 const sectionNames = {
@@ -113,16 +116,16 @@ String fmt(num n) {
 }
 
 String priceMain(int? egp) {
-  if (egp == null) return 'Договорная';
-  if (egp == 0) return 'Бесплатно';
+  if (egp == null) return tr('Договорная');
+  if (egp == 0) return tr('Бесплатно');
   return '${fmt(egp)} EGP';
 }
 
 /// Цена с учётом раздела: для работы — зарплата в месяц.
 String priceOf(Post p) {
   if (p.section == Section.jobs) {
-    if (p.priceEgp == null || p.priceEgp == 0) return 'Зарплата договорная';
-    return '${fmt(p.priceEgp!)} EGP/мес';
+    if (p.priceEgp == null || p.priceEgp == 0) return tr('Зарплата договорная');
+    return tr('{n} EGP/мес', {'n': fmt(p.priceEgp!)});
   }
   return priceMain(p.priceEgp);
 }
@@ -145,21 +148,16 @@ String? normalizeTelegram(String raw) {
 String priceRub(int? egp) =>
     (egp == null || egp == 0) ? '' : '≈ ${fmt(egp * rubPerEgp)} ₽';
 
-const _months = [
-  'янв.', 'февр.', 'марта', 'апр.', 'мая', 'июня',
-  'июля', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.'
-];
-
 String dateText(DateTime d) {
   final l = d.toLocal();
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
   final day = DateTime(l.year, l.month, l.day);
   final diff = today.difference(day).inDays;
-  if (diff == 0) return 'Сегодня';
-  if (diff == 1) return 'Вчера';
+  if (diff == 0) return tr('Сегодня');
+  if (diff == 1) return tr('Вчера');
   final y = l.year == now.year ? '' : ' ${l.year}';
-  return '${l.day} ${_months[l.month - 1]}$y';
+  return '${l.day} ${monthShort(l.month)}$y';
 }
 
 String timeText(DateTime d) {
@@ -191,6 +189,7 @@ class Profile {
     this.avatarUrl,
     this.verified = false,
     this.role = 'user',
+    this.lang = 'ru',
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -202,6 +201,7 @@ class Profile {
         avatarUrl: m['avatar_url'] as String?,
         verified: (m['verified'] ?? false) as bool,
         role: (m['role'] ?? 'user') as String,
+        lang: (m['lang'] ?? 'ru') as String,
         createdAt: DateTime.tryParse((m['created_at'] ?? '') as String),
       );
 
@@ -212,6 +212,7 @@ class Profile {
   final String? avatarUrl;
   final bool verified;
   final String role;
+  final String lang;
   final DateTime createdAt;
 }
 
@@ -233,8 +234,13 @@ class Post {
     this.authorAvatar,
     this.authorSince,
     this.rejectReason,
+    this.autoFlags,
+    this.vipUntil,
+    this.highlightUntil,
+    DateTime? bumpedAt,
     DateTime? date,
-  }) : date = date ?? DateTime.now();
+  })  : date = date ?? DateTime.now(),
+        bumpedAt = bumpedAt ?? date ?? DateTime.now();
 
   factory Post.fromMap(Map<String, dynamic> m) {
     final prof = m['profiles'] is Map ? m['profiles'] as Map : const {};
@@ -259,6 +265,10 @@ class Post {
       authorAvatar: prof['avatar_url'] as String?,
       authorSince: DateTime.tryParse((prof['created_at'] ?? '') as String),
       rejectReason: m['reject_reason'] as String?,
+      autoFlags: m['auto_flags'] as String?,
+      vipUntil: DateTime.tryParse((m['vip_until'] ?? '') as String),
+      highlightUntil: DateTime.tryParse((m['highlight_until'] ?? '') as String),
+      bumpedAt: DateTime.tryParse((m['bumped_at'] ?? '') as String),
       date: DateTime.tryParse((m['created_at'] ?? '') as String),
     );
   }
@@ -279,6 +289,58 @@ class Post {
   final String? authorAvatar;
   final DateTime? authorSince;
   final String? rejectReason;
+  final String? autoFlags;
+  final DateTime? vipUntil;
+  final DateTime? highlightUntil;
+  final DateTime bumpedAt;
+  final DateTime date;
+
+  bool get isVip => vipUntil != null && vipUntil!.isAfter(DateTime.now());
+  bool get isHighlighted => isVip || (highlightUntil != null && highlightUntil!.isAfter(DateTime.now()));
+}
+
+/// Платная услуга продвижения.
+class Product {
+  Product({required this.code, required this.title, required this.price, required this.days});
+  factory Product.fromMap(Map m) => Product(
+        code: m['code'] as String,
+        title: (m['title'] ?? '') as String,
+        price: (m['price_egp'] as num).toInt(),
+        days: ((m['days'] ?? 0) as num).toInt(),
+      );
+  final String code;
+  final String title;
+  final int price;
+  final int days;
+}
+
+/// Заявка на проверку профиля.
+class Verification {
+  Verification({required this.id, required this.userId, required this.status, this.reason, this.photos = 0,
+      this.tgUsername, this.userName = '', this.userCity = '', DateTime? date})
+      : date = date ?? DateTime.now();
+  factory Verification.fromMap(Map m) {
+    final u = m['user'] is Map ? m['user'] as Map : const {};
+    return Verification(
+      id: (m['id'] as num).toInt(),
+      userId: m['user_id'] as String,
+      status: (m['status'] ?? 'new') as String,
+      reason: m['reason'] as String?,
+      photos: ((m['photos'] ?? 0) as num).toInt(),
+      tgUsername: m['tg_username'] as String?,
+      userName: (u['name'] ?? '') as String,
+      userCity: (u['city'] ?? '') as String,
+      date: DateTime.tryParse((m['updated_at'] ?? m['created_at'] ?? '') as String),
+    );
+  }
+  final int id;
+  final String userId;
+  final String status;
+  final String? reason;
+  final int photos;
+  final String? tgUsername;
+  final String userName;
+  final String userCity;
   final DateTime date;
 }
 
@@ -414,12 +476,15 @@ class AppState extends ChangeNotifier {
   bool guest = false;
   ThemeMode themeMode = ThemeMode.dark;
   int accent = 0;
+  String lang = 'ru';
+  List<Product> products = [];
+  Verification? myVerification;
 
   User? get user => sb.auth.currentUser;
   String get userName {
     final p = profile?.name ?? '';
     if (p.isNotEmpty) return p;
-    return (user?.userMetadata?['name'] as String?) ?? (user?.email ?? 'Гость');
+    return (user?.userMetadata?['name'] as String?) ?? (user?.email ?? tr('Гость'));
   }
 
   bool get isAdmin => profile?.role == 'admin';
@@ -438,6 +503,11 @@ class AppState extends ChangeNotifier {
               ? ThemeMode.system
               : ThemeMode.dark;
       accent = p.getInt('accent') ?? 0;
+      final l = p.getString('lang');
+      if (l != null && appLanguages.any((x) => x[0] == l)) {
+        lang = l;
+        appLang = l;
+      }
       final c = p.getString('city');
       if (c != null && cities.contains(c)) city = c;
       notifyListeners();
@@ -460,6 +530,22 @@ class AppState extends ChangeNotifier {
       final p = await SharedPreferences.getInstance();
       await p.setInt('accent', i);
     } catch (_) {}
+  }
+
+  Future<void> setLang(String l) async {
+    lang = l;
+    appLang = l;
+    notifyListeners();
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setString('lang', l);
+    } catch (_) {}
+    final u = user;
+    if (u != null) {
+      try {
+        await sb.from('profiles').update({'lang': l}).eq('id', u.id);
+      } catch (_) {}
+    }
   }
 
   void toggleTheme(Brightness current) =>
@@ -488,13 +574,18 @@ class AppState extends ChangeNotifier {
     loading = true;
     notifyListeners();
     try {
-      final rows = await sb
-          .from('posts')
-          .select(_postSelect)
-          .eq('status', 'active')
-          .order('created_at', ascending: false)
-          .limit(300);
+      List<Map<String, dynamic>> rows;
+      try {
+        rows = await sb.from('posts').select(_postSelect).eq('status', 'active')
+            .order('bumped_at', ascending: false).limit(300);
+      } on PostgrestException {
+        // база ещё без v4 — обычная сортировка по дате
+        rows = await sb.from('posts').select(_postSelect).eq('status', 'active')
+            .order('created_at', ascending: false).limit(300);
+      }
       posts = rows.map<Post>((m) => Post.fromMap(m)).toList();
+      // VIP — сверху ленты (порядок внутри групп сохраняется)
+      posts = [...posts.where((p) => p.isVip), ...posts.where((p) => !p.isVip)];
       error = null;
     } catch (e) {
       error = 'Нет связи с сервером. Потяните вниз, чтобы обновить.';
@@ -527,10 +618,17 @@ class AppState extends ChangeNotifier {
       favorites = {};
       myPosts = [];
       threads = [];
+      myVerification = null;
       notifyListeners();
       return;
     }
-    await Future.wait([loadProfile(), loadFavorites(), loadMyPosts(), loadThreads()]);
+    await Future.wait([loadProfile(), loadFavorites(), loadMyPosts(), loadThreads(), loadMyVerification()]);
+    final pl = profile?.lang;
+    if (pl != null && pl != lang) {
+      try {
+        await sb.from('profiles').update({'lang': lang}).eq('id', user!.id);
+      } catch (_) {}
+    }
   }
 
   Future<void> loadProfile() async {
@@ -598,6 +696,14 @@ class AppState extends ChangeNotifier {
     await sb.storage.from(photoBucket).uploadBinary(path, bytes,
         fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: false));
     return sb.storage.from(photoBucket).getPublicUrl(path);
+  }
+
+  /// Скачать своё фото из хранилища (для редактирования).
+  Future<Uint8List> downloadPhoto(String url) async {
+    final marker = '/$photoBucket/';
+    final i = url.indexOf(marker);
+    if (i < 0) throw Exception('url');
+    return sb.storage.from(photoBucket).download(Uri.decodeComponent(url.substring(i + marker.length)));
   }
 
   Future<void> updateAvatar(Uint8List bytes) async {
@@ -861,7 +967,74 @@ class AppState extends ChangeNotifier {
 
   Future<void> moderate(String postId, String status, {String? reason}) async {
     await sb.from('posts').update({'status': status, 'reject_reason': reason}).eq('id', postId);
+    // письмо автору (если подключена почта)
+    sb.functions.invoke('notify', body: {'kind': 'post', 'post_id': postId}).ignore();
     await load();
+  }
+
+  // ---------- Проверка профиля ----------
+
+  Future<void> loadMyVerification() async {
+    final u = user;
+    if (u == null) return;
+    try {
+      final r = await sb.from('verifications').select().eq('user_id', u.id).order('id', ascending: false).limit(1).maybeSingle();
+      myVerification = r == null ? null : Verification.fromMap(r);
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Код для бота и ссылка t.me на него.
+  Future<String> verificationLink() async {
+    final code = await sb.rpc('start_verification') as String;
+    await loadMyVerification();
+    final res = await sb.functions.invoke('tg-bot', method: HttpMethod.get, queryParameters: {'code': code});
+    final data = res.data;
+    if (data is Map && data['url'] is String) return data['url'] as String;
+    throw Exception('bot');
+  }
+
+  Future<List<Verification>> fetchVerifications() async {
+    final rows = await sb
+        .from('verifications')
+        .select('*, user:profiles!verifications_user_id_fkey(name, city)')
+        .order('id', ascending: false)
+        .limit(100);
+    return rows.map<Verification>((m) => Verification.fromMap(m)).toList();
+  }
+
+  Future<void> adminVerify(String userId, bool ok) async {
+    await sb.rpc('admin_verify', params: {'p_user': userId, 'p_ok': ok, 'p_reason': ok ? null : 'Документ не подтверждён'});
+    sb.functions.invoke('notify', body: {'kind': 'verify', 'user_id': userId}).ignore();
+  }
+
+  // ---------- Продвижение и оплата ----------
+
+  Future<void> loadProducts() async {
+    try {
+      final rows = await sb.from('products').select().eq('active', true).order('price_egp');
+      products = rows.map<Product>((m) => Product.fromMap(m)).toList();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Ссылка на оплату Paymob. Бросает 'not_configured', если оплата ещё не подключена.
+  Future<String> paymentLink(String postId, String product) async {
+    try {
+      final res = await sb.functions.invoke('payments', body: {'post_id': postId, 'product': product});
+      final data = res.data;
+      if (data is Map && data['url'] is String) return data['url'] as String;
+    } on FunctionException catch (e) {
+      final d = e.details;
+      if (d is Map && d['error'] == 'payments_not_configured') throw Exception('not_configured');
+      rethrow;
+    }
+    throw Exception('payment');
+  }
+
+  Future<void> adminPromote(String postId, String product) async {
+    await sb.rpc('admin_promote', params: {'p_post': postId, 'p_product': product});
+    await Future.wait([load(), loadMyPosts()]);
   }
 
   Future<void> deleteReport(int id) async {

@@ -3,7 +3,8 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' show ImageFilter;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -12,6 +13,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'config.dart';
 import 'data.dart';
+import 'features.dart';
+import 'i18n.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -157,7 +160,9 @@ Color withAlpha(int argb, double a) =>
     Color(((a * 255).round().clamp(0, 255) << 24) | (argb & 0xFFFFFF));
 
 TextStyle heading(double size, {FontWeight weight = FontWeight.w700, Color? color, double height = 1.25}) =>
-    GoogleFonts.manrope(fontSize: size, fontWeight: weight, color: color, height: height, letterSpacing: -.2);
+    appLang == 'ar'
+        ? GoogleFonts.cairo(fontSize: size, fontWeight: weight, color: color, height: height)
+        : GoogleFonts.manrope(fontSize: size, fontWeight: weight, color: color, height: height, letterSpacing: -.2);
 
 ThemeData buildTheme(Brightness b, Color primary) {
   final p = Pal.make(b == Brightness.dark, primary);
@@ -173,7 +178,7 @@ ThemeData buildTheme(Brightness b, Color primary) {
     dividerColor: p.line,
   );
   return base.copyWith(
-    textTheme: GoogleFonts.interTextTheme(base.textTheme).apply(bodyColor: p.text, displayColor: p.text),
+    textTheme: (appLang == 'ar' ? GoogleFonts.cairoTextTheme(base.textTheme) : GoogleFonts.interTextTheme(base.textTheme)).apply(bodyColor: p.text, displayColor: p.text),
     textSelectionTheme: TextSelectionThemeData(cursorColor: primary, selectionColor: primary.withAlpha(70)),
     progressIndicatorTheme: ProgressIndicatorThemeData(color: primary),
   );
@@ -398,10 +403,15 @@ class Ico extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
+    final paint = CustomPaint(
       size: Size.square(size),
       painter: _IcoPainter(ic[name] ?? ic['tag']!, color ?? Pal.of(context).text, stroke, fill),
     );
+    // Стрелки зеркалим для языков справа налево
+    if ((name == 'back' || name == 'chevron' || name == 'send') && Directionality.of(context) == TextDirection.rtl) {
+      return Transform.flip(flipX: true, child: paint);
+    }
+    return paint;
   }
 }
 
@@ -750,7 +760,7 @@ OutlineInputBorder _border(Color c, [double w = 1]) => OutlineInputBorder(
 
 InputDecoration fieldDecoration(Pal p, {String? hint, Widget? suffix, bool enabled = true}) =>
     InputDecoration(
-      hintText: hint,
+      hintText: hint == null ? null : tr(hint),
       hintStyle: TextStyle(color: p.hint, fontSize: 15),
       isDense: true,
       filled: true,
@@ -1165,7 +1175,7 @@ class IconBtn extends StatelessWidget {
     }
     return Semantics(
       button: true,
-      label: label,
+      label: label == null ? null : tr(label!),
       child: GestureDetector(onTap: onTap, behavior: HitTestBehavior.opaque, child: body),
     );
   }
@@ -1251,7 +1261,7 @@ Future<void> openUrl(BuildContext context, String url, String fallbackCopy) asyn
   } catch (_) {}
   if (!ok && context.mounted) {
     Clipboard.setData(ClipboardData(text: fallbackCopy));
-    toast(context, 'Не удалось открыть. Контакт скопирован: $fallbackCopy');
+    toast(context, tr('Не удалось открыть. Контакт скопирован: {c}', {'c': fallbackCopy}));
   }
 }
 
@@ -1300,8 +1310,16 @@ class _SvoiAppState extends State<SvoiApp> {
       child: AnimatedBuilder(
         animation: state,
         builder: (_, __) => MaterialApp(
-          title: 'Свои в Египте',
+          key: ValueKey(state.lang),
+          title: tr('Свои в Египте'),
           debugShowCheckedModeBanner: false,
+          locale: Locale(state.lang),
+          supportedLocales: [for (final l in appLanguages) Locale(l[0])],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
           theme: buildTheme(Brightness.light, accentColor(state.accent)),
           darkTheme: buildTheme(Brightness.dark, accentColor(state.accent)),
           themeMode: state.themeMode,
@@ -1426,7 +1444,7 @@ class _AuthScreenState extends State<AuthScreen> {
             register = false;
             needConfirm = true;
           });
-          say('Мы отправили письмо на $e. Откройте его и нажмите ссылку «Подтвердить», затем войдите здесь.', ok: true);
+          say(tr('Мы отправили письмо на {e}. Откройте его и нажмите ссылку «Подтвердить», затем войдите здесь.', {'e': e}), ok: true);
         }
       } else {
         await auth.signInWithPassword(email: e, password: p);
@@ -1464,7 +1482,7 @@ class _AuthScreenState extends State<AuthScreen> {
     }
     try {
       await Supabase.instance.client.auth.resend(type: OtpType.signup, email: e, emailRedirectTo: siteUrl);
-      if (mounted) say('Письмо отправлено повторно на $e. Проверьте также папку «Спам».', ok: true);
+      if (mounted) say(tr('Письмо отправлено повторно на {e}. Проверьте также папку «Спам».', {'e': e}), ok: true);
     } on AuthException catch (err) {
       if (mounted) say(translate(err.message));
     } catch (_) {
@@ -1777,7 +1795,7 @@ class AppDrawer extends StatelessWidget {
 
     Widget label(String t) => Padding(
           padding: const EdgeInsets.fromLTRB(24, 16, 16, 6),
-          child: Text(t.toUpperCase(),
+          child: Text(tr(t).toUpperCase(),
               style: TextStyle(fontSize: 11.5, color: p.muted, fontWeight: FontWeight.w700, letterSpacing: .8)),
         );
 
@@ -1787,14 +1805,14 @@ class AppDrawer extends StatelessWidget {
       width: 312,
       backgroundColor: Colors.transparent,
       elevation: 0,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.horizontal(right: Radius.circular(28))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadiusDirectional.horizontal(end: Radius.circular(28))),
       clipBehavior: Clip.antiAlias,
       child: Glass(
         opacity: p.dark ? .8 : .9,
         blur: 30,
         border: false,
         child: Container(
-          decoration: BoxDecoration(border: Border(right: BorderSide(color: p.glassLine))),
+          decoration: BoxDecoration(border: BorderDirectional(end: BorderSide(color: p.glassLine))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             SizedBox(height: mq.padding.top + 14),
             // Логотип
@@ -1835,7 +1853,7 @@ class AppDrawer extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: p.text)),
                           const SizedBox(height: 2),
-                          Text(logged ? 'Мой профиль · ${app.profile?.city ?? 'Каир'}' : 'Войти или зарегистрироваться',
+                          Text(logged ? '${tr('Мой профиль')} · ${tr(app.profile?.city ?? 'Каир')}' : 'Войти или зарегистрироваться',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(fontSize: 13, color: logged ? p.muted : p.accent, fontWeight: FontWeight.w500)),
@@ -1855,6 +1873,10 @@ class AppDrawer extends StatelessWidget {
                     onSelect(i);
                     close();
                   }),
+                item('pyramid', 'Путеводитель', onTap: () {
+                  close();
+                  push(context, const GuideScreen());
+                }),
                 label('Личный кабинет'),
                 item('doc', 'Мои объявления',
                     badge: logged && app.myPosts.isNotEmpty ? '${app.myPosts.length}' : null,
@@ -1865,6 +1887,9 @@ class AppDrawer extends StatelessWidget {
                 item('chat', 'Сообщения',
                     badge: app.unreadTotal > 0 ? '${app.unreadTotal}' : null,
                     onTap: () => open(const ChatsScreen(), 'Войдите, чтобы переписываться.')),
+                item('shield', 'Проверка профиля',
+                    badge: app.profile?.verified == true ? '✓' : null,
+                    onTap: () => open(const VerifyScreen(), 'Войдите, чтобы пройти проверку.')),
                 if (app.isAdmin) ...[
                   label('Администратор'),
                   item('shield', 'Модерация', onTap: () {
@@ -1878,6 +1903,11 @@ class AppDrawer extends StatelessWidget {
                   push(context, const PolicyScreen());
                 }),
                 label('Оформление'),
+                item('globe', '${tr('Язык')} · ${langName(app.lang)}', onTap: () {
+                  close();
+                  showLanguageSheet(context);
+                }),
+                const SizedBox(height: 6),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   child: Segments<ThemeMode>(
@@ -1896,7 +1926,7 @@ class AppDrawer extends StatelessWidget {
                       Semantics(
                         button: true,
                         selected: app.accent == i,
-                        label: 'Цвет: ${accentOptions[i][0]}',
+                        label: '${tr('Цвет')}: ${tr('${accentOptions[i][0]}')}',
                         child: GestureDetector(
                           onTap: () => app.setAccent(i),
                           child: AnimatedContainer(
@@ -1926,7 +1956,7 @@ class AppDrawer extends StatelessWidget {
                 const SizedBox(height: 6),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 4, 16, 8),
-                  child: Text('Цвет: ${accentOptions[app.accent][0]}', style: TextStyle(fontSize: 12.5, color: p.muted)),
+                  child: Text('${tr('Цвет')}: ${tr('${accentOptions[app.accent][0]}')}', style: TextStyle(fontSize: 12.5, color: p.muted)),
                 ),
               ]),
             ),
@@ -2158,7 +2188,7 @@ class _ListTabState extends State<ListTab> {
               ]),
             ),
             const SizedBox(height: 18),
-            PrimaryButton('Показать $n ${plural(n, 'объявление', 'объявления', 'объявлений')}',
+            PrimaryButton(tr('Показать {n}', {'n': '$n ${adsWord(n)}'}),
                 onPressed: () => Navigator.pop(ctx, true)),
           ]),
         );
@@ -2219,7 +2249,7 @@ class _ListTabState extends State<ListTab> {
                 style: TextStyle(fontSize: 15, color: p.text),
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration.collapsed(
-                  hintText: searchHints[widget.section]!,
+                  hintText: tr(searchHints[widget.section]!),
                   hintStyle: TextStyle(fontSize: 15, color: p.hint),
                 ),
               ),
@@ -2307,8 +2337,8 @@ class _ListTabState extends State<ListTab> {
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 2),
-            child: Text('${items.length} ${plural(items.length, 'объявление', 'объявления', 'объявлений')}'
-                '${app.city != cities.first ? ' · ${app.city}' : ''}',
+            child: Text('${items.length} ${adsWord(items.length)}'
+                '${app.city != cities.first ? ' · ${tr(app.city)}' : ''}',
                 style: TextStyle(fontSize: 13, color: p.muted, fontWeight: FontWeight.w500)),
           ),
         ),
@@ -2416,10 +2446,24 @@ class PostTile extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         AspectRatio(
           aspectRatio: 1,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
+          child: Container(
+            decoration: post.isHighlighted
+                ? BoxDecoration(
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: post.isVip ? const Color(0xFFF59E0B) : p.accent, width: 2.2),
+                    boxShadow: [BoxShadow(color: (post.isVip ? const Color(0xFFF59E0B) : p.accent).withAlpha(70), blurRadius: 14)],
+                  )
+                : null,
+            child: ClipRRect(
+            borderRadius: BorderRadius.circular(post.isHighlighted ? 19 : 20),
             child: Stack(children: [
               Positioned.fill(child: PostImage(post: post)),
+              if (post.isVip)
+                Positioned(
+                  left: 8,
+                  top: post.photos.length > 1 ? 34 : 8,
+                  child: const VipBadge(),
+                ),
               Positioned(
                 top: 8,
                 right: 8,
@@ -2470,6 +2514,7 @@ class PostTile extends StatelessWidget {
                 ),
             ]),
           ),
+          ),
         ),
         const SizedBox(height: 8),
         Text(priceOf(post),
@@ -2482,7 +2527,7 @@ class PostTile extends StatelessWidget {
         const SizedBox(height: 4),
         Row(children: [
           Expanded(
-            child: Text('${post.city} · ${dateText(post.date)}',
+            child: Text('${tr(post.city)} · ${dateText(post.date)}',
                 maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: p.muted)),
           ),
           if (rating != null)
@@ -2522,8 +2567,9 @@ class PostCard extends StatelessWidget {
                 maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: p.text2, height: 1.3)),
             const SizedBox(height: 4),
             Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              Text('${post.city} · ${post.category}', style: TextStyle(fontSize: 12, color: p.muted)),
+              Text('${tr(post.city)} · ${tr(post.category)}', style: TextStyle(fontSize: 12, color: p.muted)),
               if (post.verified) const VerifiedPill(),
+              if (post.isVip) const VipBadge(),
               if (rating != null)
                 Text('★ ${rating.toStringAsFixed(1)}',
                     style: TextStyle(fontSize: 12, color: p.warn, fontWeight: FontWeight.w700)),
@@ -2567,7 +2613,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     if (kind == 'wa') {
       if (!hasPhone) {
         Clipboard.setData(ClipboardData(text: c));
-        toast(context, 'Номер WhatsApp не указан. Контакт скопирован: $c');
+        toast(context, tr('Номер WhatsApp не указан. Контакт скопирован: {c}', {'c': c}));
         return;
       }
       openUrl(context, 'https://wa.me/$d', c);
@@ -2578,12 +2624,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         openUrl(context, 'https://t.me/+$d', c);
       } else {
         Clipboard.setData(ClipboardData(text: c));
-        toast(context, 'Контакт скопирован: $c');
+        toast(context, tr('Контакт скопирован: {c}', {'c': c}));
       }
     } else {
       if (!hasPhone) {
         Clipboard.setData(ClipboardData(text: c));
-        toast(context, 'Телефон не указан. Контакт скопирован: $c');
+        toast(context, tr('Телефон не указан. Контакт скопирован: {c}', {'c': c}));
         return;
       }
       openUrl(context, 'tel:$plus$d', c);
@@ -2614,7 +2660,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final fav = app.favorites.contains(post.id);
     final rating = app.ratings[post.userId];
     final mine = app.user?.id == post.userId;
-    final since = post.authorSince != null ? ' · с ${post.authorSince!.year}' : '';
+    final since = post.authorSince != null ? ' · ${tr('с {y}', {'y': post.authorSince!.year})}' : '';
     final rub = post.section == Section.jobs ? '' : priceRub(post.priceEgp);
     final count = math.max(1, post.photos.length);
     final galleryH = math.min(mq.size.width, 460.0) * .92 + mq.padding.top;
@@ -2770,7 +2816,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             if (post.verified) ...[const SizedBox(width: 6), Ico('shield', size: 15, color: p.ok)],
                           ]),
                           const SizedBox(height: 2),
-                          Text(rating != null ? '★ ${rating.toStringAsFixed(1)}$since' : 'Новый продавец$since',
+                          Text(rating != null ? '★ ${rating.toStringAsFixed(1)}$since' : '${tr('Новый продавец')}$since',
                               style: TextStyle(fontSize: 13, color: p.muted)),
                         ]),
                       ),
@@ -2794,7 +2840,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   ),
                   if (mine) ...[
                     const SizedBox(height: 12),
-                    Text('Это ваше объявление. Контакт: ${post.contact}',
+                    Text(tr('Это ваше объявление. Контакт: {c}', {'c': post.contact}),
                         style: TextStyle(fontSize: 13, color: p.muted)),
                   ] else
                     Center(
@@ -2934,7 +2980,39 @@ class _AddPostScreenState extends State<AddPostScreen> {
     super.dispose();
   }
 
-  String? notEmpty(String? v) => (v == null || v.trim().isEmpty) ? 'Заполните поле' : null;
+  String? notEmpty(String? v) => (v == null || v.trim().isEmpty) ? tr('Заполните поле') : null;
+
+  /// Байты фото, загруженных в этом окне (чтобы не скачивать их снова для редактирования).
+  final Map<String, Uint8List> _bytes = {};
+
+  Future<void> photoActions(int i) async {
+    final act = await pickOption(context, tr('Фото {n}', {'n': i + 1}),
+        [if (i > 0) 'Сделать главным', 'Обрезать и повернуть', 'Удалить фото'], '');
+    if (act == null || !mounted) return;
+    if (act == 'Сделать главным') {
+      setState(() => photos.insert(0, photos.removeAt(i)));
+    } else if (act == 'Удалить фото') {
+      setState(() => photos.removeAt(i));
+    } else {
+      final app = AppScope.of(context);
+      final url = photos[i];
+      try {
+        setState(() => uploading = true);
+        final src = _bytes[url] ?? await app.downloadPhoto(url);
+        if (!mounted) return;
+        setState(() => uploading = false);
+        final out = await push<Uint8List>(context, PhotoEditor(bytes: src));
+        if (out == null || !mounted) return;
+        setState(() => uploading = true);
+        final nu = await app.uploadImage(out, 'post');
+        _bytes[nu] = out;
+        if (mounted) setState(() => photos[i] = nu);
+      } catch (_) {
+        if (mounted) toast(context, 'Не удалось открыть фото. Попробуйте ещё раз.');
+      }
+      if (mounted) setState(() => uploading = false);
+    }
+  }
 
   Future<void> addPhotos() async {
     final app = AppScope.of(context);
@@ -2945,6 +3023,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
       for (final b in picked) {
         final url = await app.uploadImage(b, 'post');
         if (!mounted) return;
+        _bytes[url] = b;
         setState(() => photos.add(url));
       }
     } catch (_) {
@@ -3013,7 +3092,9 @@ class _AddPostScreenState extends State<AddPostScreen> {
     if (!cats.contains(category)) category = cats.first;
 
     Widget photoTile(int i) => Stack(children: [
-          ClipRRect(
+          GestureDetector(
+            onTap: uploading ? null : () => photoActions(i),
+            child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: Image.network(photos[i],
                 width: 88,
@@ -3021,6 +3102,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) =>
                     Container(width: 88, height: 88, color: p.soft, child: Center(child: Ico('image', color: p.muted)))),
+          ),
           ),
           Positioned(
             right: 4,
@@ -3096,6 +3178,12 @@ class _AddPostScreenState extends State<AddPostScreen> {
                         for (var i = 0; i < photos.length; i++) ...[photoTile(i), const SizedBox(width: 8)],
                         if (photos.length < 5) addTile,
                       ]),
+                    ),
+                  if (photos.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text('Нажмите на фото: сделать главным, обрезать, повернуть',
+                          style: TextStyle(fontSize: 12, color: p.muted)),
                     ),
                   gap,
                   PickField(
@@ -3434,12 +3522,7 @@ class _ConverterCardState extends State<ConverterCard> {
 // Профиль
 // =====================================================================
 
-const _monthsGen = [
-  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
-];
-
-String sinceText(DateTime d) => 'На сайте с ${_monthsGen[d.month - 1]} ${d.year}';
+String sinceText(DateTime d) => tr('На сайте с {d}', {'d': monthYear(d)});
 
 Future<void> changeAvatar(BuildContext context) async {
   final app = AppScope.of(context);
@@ -3621,10 +3704,10 @@ class ProfileScreen extends StatelessWidget {
                       Divider(height: 1, color: p.line3),
                       const SizedBox(height: 14),
                       Row(children: [
-                        stat('$active', plural(active, 'объявление', 'объявления', 'объявлений')),
+                        stat('$active', adsWord(active)),
                         stat('${app.favorites.length}', 'в избранном'),
                         stat(rating == null ? '—' : rating.toStringAsFixed(1),
-                            reviews == 0 ? 'нет отзывов' : '$reviews ${plural(reviews, 'отзыв', 'отзыва', 'отзывов')}'),
+                            reviews == 0 ? 'нет отзывов' : '$reviews ${reviewsWord(reviews)}'),
                       ]),
                       const SizedBox(height: 16),
                       SizedBox(
@@ -3727,7 +3810,7 @@ class ProfileScreen extends StatelessWidget {
                     MenuRow(
                         icon: 'pin',
                         label: 'Город в ленте',
-                        right: app.city,
+                        right: tr(app.city),
                         onTap: () async {
                           final v = await pickOption(context, 'Город в ленте', cities, app.city);
                           if (v != null) app.setCity(v);
@@ -3735,7 +3818,12 @@ class ProfileScreen extends StatelessWidget {
                     MenuRow(icon: 'lock', label: 'Сменить пароль', onTap: () => showPasswordSheet(context)),
                     MenuRow(icon: 'chat', label: 'Сообщения', right: app.unreadTotal > 0 ? '${app.unreadTotal}' : null,
                         rightAccent: app.unreadTotal > 0, onTap: () => push(context, const ChatsScreen())),
-                    MenuRow(icon: 'globe', label: 'Язык', right: 'Русский', onTap: () => toast(context, 'Другие языки появятся позже')),
+                    MenuRow(icon: 'globe', label: 'Язык', right: langName(app.lang), onTap: () => showLanguageSheet(context)),
+                    MenuRow(
+                        icon: 'shield',
+                        label: 'Проверка профиля',
+                        right: app.profile?.verified == true ? tr('Пройдена') : null,
+                        onTap: () => push(context, const VerifyScreen())),
                   ]),
                   const SizedBox(height: 10),
                   MenuGroup(rows: [
@@ -4067,7 +4155,7 @@ class MyAdsScreen extends StatelessWidget {
                         return Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(color: p.infobg, borderRadius: BorderRadius.circular(14)),
-                          child: Text('Новые и изменённые объявления проходят проверку модератором. «Поднять» — объявление на 3 дня наверху списка (скоро).',
+                          child: Text('Новые и изменённые объявления проходят проверку модератором. «Продвинуть» — поднять наверх, выделить цветом или сделать VIP.',
                               style: TextStyle(fontSize: 13, color: p.info, height: 1.45)),
                         );
                       }
@@ -4087,7 +4175,7 @@ class MyAdsScreen extends StatelessWidget {
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: p.text)),
                                 const SizedBox(height: 4),
-                                Text('${priceOf(x)} · ${x.city} · ${dateText(x.date)}',
+                                Text('${priceOf(x)} · ${tr(x.city)} · ${dateText(x.date)}',
                                     style: TextStyle(fontSize: 13, color: p.muted)),
                                 if (x.status == 'pending')
                                   Padding(
@@ -4095,10 +4183,19 @@ class MyAdsScreen extends StatelessWidget {
                                     child: Text('Проверяем — обычно до нескольких часов',
                                         style: TextStyle(fontSize: 12.5, color: p.warn)),
                                   ),
+                                if (x.status == 'active' && x.isHighlighted)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                        x.isVip
+                                            ? tr('VIP до {d}', {'d': dateText(x.vipUntil!)})
+                                            : tr('Выделено до {d}', {'d': dateText(x.highlightUntil!)}),
+                                        style: const TextStyle(fontSize: 12.5, color: Color(0xFFF59E0B), fontWeight: FontWeight.w600)),
+                                  ),
                                 if (x.status == 'blocked' && (x.rejectReason ?? '').isNotEmpty)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 4),
-                                    child: Text('Причина: ${x.rejectReason}', style: TextStyle(fontSize: 12.5, color: p.bad)),
+                                    child: Text(tr('Причина: {r}', {'r': tr(x.rejectReason ?? '')}), style: TextStyle(fontSize: 12.5, color: p.bad)),
                                   ),
                               ]),
                             ),
@@ -4108,7 +4205,7 @@ class MyAdsScreen extends StatelessWidget {
                           const SizedBox(height: 12),
                           Row(children: [
                             Expanded(
-                              child: smallBtn('Поднять', x.status == 'active' ? () => toast(context, 'Поднятие объявлений скоро появится') : null,
+                              child: smallBtn('Продвинуть', x.status == 'active' ? () => showPromoteSheet(context, x) : null,
                                   primary: true),
                             ),
                             const SizedBox(width: 8),
@@ -4245,7 +4342,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(fontSize: 13, color: p.accent)),
-                                  Text('${mine ? 'Вы: ' : ''}${t.last.imageUrl != null && t.last.text.isEmpty ? '📷 Фото' : t.last.text}',
+                                  Text('${mine ? tr('Вы: ') : ''}${t.last.imageUrl != null && t.last.text.isEmpty ? tr('📷 Фото') : t.last.text}',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
@@ -4374,7 +4471,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final ok = await confirmDialog(
         context,
         'Сделка состоялась?',
-        'Подтвердите, что ${widget.otherName} купил(а) товар или получил(а) услугу. После этого покупатель сможет оставить вам отзыв.',
+        tr('Подтвердите, что {n} купил(а) товар или получил(а) услугу. После этого покупатель сможет оставить вам отзыв.', {'n': widget.otherName}),
         'Подтвердить',
         danger: false);
     if (!ok || !mounted) return;
@@ -4556,7 +4653,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 textCapitalization: TextCapitalization.sentences,
                 style: TextStyle(fontSize: 15, color: p.text),
                 decoration: InputDecoration(
-                  hintText: 'Сообщение…',
+                  hintText: tr('Сообщение…'),
                   hintStyle: TextStyle(color: p.hint, fontSize: 15),
                   isDense: true,
                   filled: true,
@@ -4935,7 +5032,7 @@ class _SellerScreenState extends State<SellerScreen> {
             const SizedBox(height: 6),
             StarsRow(value: avg, size: 15),
             const SizedBox(height: 4),
-            Text('${reviews.length} ${plural(reviews.length, 'отзыв', 'отзыва', 'отзывов')}',
+            Text('${reviews.length} ${reviewsWord(reviews.length)}',
                 style: TextStyle(fontSize: 12.5, color: p.muted)),
           ]),
           const SizedBox(width: 18),
@@ -4992,13 +5089,13 @@ class _SellerScreenState extends State<SellerScreen> {
                           ]),
                           const SizedBox(height: 2),
                           Text(
-                              '${prof?.city ?? widget.fromPost?.city ?? ''}${prof != null ? ' · на сайте с ${prof!.createdAt.year}' : ''}',
+                              '${tr(prof?.city ?? widget.fromPost?.city ?? '')}${prof != null ? ' · ${tr('на сайте с {y}', {'y': prof!.createdAt.year})}' : ''}',
                               style: TextStyle(fontSize: 13, color: p.muted)),
                           const SizedBox(height: 16),
                           Row(children: [
                             stat(reviews.isEmpty ? '—' : avg.toStringAsFixed(1), 'рейтинг'),
-                            stat('${posts.length}', plural(posts.length, 'объявление', 'объявления', 'объявлений')),
-                            stat('${reviews.length}', plural(reviews.length, 'отзыв', 'отзыва', 'отзывов')),
+                            stat('${posts.length}', adsWord(posts.length)),
+                            stat('${reviews.length}', reviewsWord(reviews.length)),
                           ]),
                           if (!self) ...[
                             const SizedBox(height: 16),
@@ -5070,7 +5167,7 @@ class _SellerScreenState extends State<SellerScreen> {
                                 Ico('check', size: 14, color: p.ok, stroke: 2.4),
                                 const SizedBox(width: 6),
                                 Expanded(
-                                  child: Text('Сделка: ${r.postTitle}',
+                                  child: Text(tr('Сделка: {t}', {'t': r.postTitle}),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(fontSize: 12.5, color: p.ok, fontWeight: FontWeight.w600)),
@@ -5178,7 +5275,7 @@ class _ModerationScreenState extends State<ModerationScreen> {
       if (mounted) {
         setState(() {
           loading = false;
-          error = 'Не удалось загрузить. Проверьте, что база обновлена (v3).';
+          error = 'Не удалось загрузить. Проверьте, что база обновлена (v4).';
         });
       }
     }
@@ -5221,10 +5318,16 @@ class _ModerationScreenState extends State<ModerationScreen> {
                 Text(x.title, maxLines: 2, overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: p.text)),
                 const SizedBox(height: 2),
-                Text('${priceOf(x)} · ${sectionNames[x.section]} · ${x.category}',
+                Text('${priceOf(x)} · ${tr(sectionNames[x.section]!)} · ${tr(x.category)}',
                     style: TextStyle(fontSize: 12.5, color: p.muted)),
-                Text('${x.author} · ${x.city} · ${dateText(x.date)}', style: TextStyle(fontSize: 12.5, color: p.muted)),
-                Text('Контакт: ${x.contact}', style: TextStyle(fontSize: 12.5, color: p.text2)),
+                Text('${x.author} · ${tr(x.city)} · ${dateText(x.date)}', style: TextStyle(fontSize: 12.5, color: p.muted)),
+                Text(tr('Контакт: {c}', {'c': x.contact}), style: TextStyle(fontSize: 12.5, color: p.text2)),
+                if ((x.autoFlags ?? '').isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(tr('Автопроверка: {f}', {'f': x.autoFlags}),
+                        style: TextStyle(fontSize: 12.5, color: p.warn, fontWeight: FontWeight.w600)),
+                  ),
               ]),
             ),
           ]),
@@ -5249,7 +5352,9 @@ class _ModerationScreenState extends State<ModerationScreen> {
   Widget build(BuildContext context) {
     final p = Pal.of(context);
     final list = <Widget>[];
-    if (tab == 0) {
+    if (tab == 2) {
+      list.add(const VerificationsPanel());
+    } else if (tab == 0) {
       if (pending.isEmpty) {
         list.add(const EmptyState(icon: 'check', text: 'Новых объявлений на проверке нет.'));
       }
@@ -5268,7 +5373,7 @@ class _ModerationScreenState extends State<ModerationScreen> {
                 Ico('alert', size: 16, color: p.warn),
                 const SizedBox(width: 6),
                 Expanded(
-                  child: Text('Жалоба · ${dateText(DateTime.tryParse((r['created_at'] ?? '') as String) ?? DateTime.now())}'
+                  child: Text('${tr('Жалоба')} · ${dateText(DateTime.tryParse((r['created_at'] ?? '') as String) ?? DateTime.now())}'
                       '${(r['reason'] ?? '').toString().isNotEmpty ? ': ${r['reason']}' : ''}',
                       style: TextStyle(fontSize: 12.5, color: p.warn)),
                 ),
@@ -5289,8 +5394,8 @@ class _ModerationScreenState extends State<ModerationScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Segments<int>(
-            values: const [0, 1],
-            labels: ['На проверке (${pending.length})', 'Жалобы (${reports.length})'],
+            values: const [0, 1, 2],
+            labels: ['${tr('На проверке')} (${pending.length})', '${tr('Жалобы')} (${reports.length})', tr('Люди')],
             selected: tab,
             onChanged: (v) => setState(() => tab = v),
           ),
