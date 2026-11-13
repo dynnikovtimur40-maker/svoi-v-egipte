@@ -8,6 +8,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -19,6 +20,14 @@ import 'i18n.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(url: supabaseUrl, anonKey: supabaseKey);
+  // Язык: сохранённый выбор, иначе язык телефона (если он у нас есть), иначе русский.
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final device = WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+    final saved = prefs.getString('lang');
+    final code = saved ?? device;
+    if (appLanguages.any((l) => l[0] == code)) appLang = code;
+  } catch (_) {}
   runApp(const SvoiApp());
 }
 
@@ -1912,7 +1921,7 @@ class AppDrawer extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   child: Segments<ThemeMode>(
                     values: const [ThemeMode.dark, ThemeMode.light, ThemeMode.system],
-                    labels: const ['Тёмная', 'Светлая', 'Авто'],
+                    labels: const ['Тёмная', 'Светлая', 'Система'],
                     icons: const ['moon', 'sun', 'palette'],
                     selected: mode,
                     onChanged: app.setTheme,

@@ -476,7 +476,7 @@ class AppState extends ChangeNotifier {
   bool guest = false;
   ThemeMode themeMode = ThemeMode.dark;
   int accent = 0;
-  String lang = 'ru';
+  String lang = appLang;
   List<Product> products = [];
   Verification? myVerification;
 

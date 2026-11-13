@@ -88,7 +88,7 @@ String monthShort(int m) => (_monthsShort[appLang] ?? _monthsShort['en']!)[m - 1
 /// «ноября 2026» / «November 2026».
 String monthYear(DateTime d) {
   final names = _monthsLong[appLang] ?? _monthsLong['en']!;
-  return appLang == 'en' || appLang == 'de' ? '${names[d.month - 1]} ${d.year}' : '${names[d.month - 1]} ${d.year}';
+  return '${names[d.month - 1]} ${d.year}';
 }
 
 /// Text, который сам переводит строку на текущий язык.
