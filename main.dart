@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,15 +20,26 @@ Future<void> main() async {
 }
 
 // =====================================================================
-// Палитра (из утверждённого макета)
+// Палитра: тёмный премиум + светлая тема, цвет акцента выбирается
 // =====================================================================
 
-const teal = Color(0xFF0B6770);
-const tealDeep = Color(0xFF084F56);
+/// Цвета акцента, которые можно выбрать в боковой панели.
+const accentOptions = <List<Object>>[
+  ['Бирюза', 0xFF14B8A6],
+  ['Синий', 0xFF3B82F6],
+  ['Индиго', 0xFF6366F1],
+  ['Фиолет', 0xFFA855F7],
+  ['Коралл', 0xFFF43F5E],
+  ['Золото', 0xFFF59E0B],
+];
+
+Color accentColor(int i) => Color(accentOptions[i.clamp(0, accentOptions.length - 1)][1] as int);
 
 class Pal {
-  const Pal({
+  Pal._({
     required this.dark,
+    required this.primary,
+    required this.onPrimary,
     required this.accent,
     required this.bg,
     required this.card,
@@ -40,13 +52,10 @@ class Pal {
     required this.text2,
     required this.muted,
     required this.body,
-    required this.brown,
     required this.warnbg,
     required this.warn,
-    required this.sel,
     required this.okbg,
     required this.ok,
-    required this.avatar,
     required this.infobg,
     required this.info,
     required this.bad,
@@ -55,123 +64,118 @@ class Pal {
   });
 
   final bool dark;
-  final Color accent, bg, card, soft, seg, line, line2, line3, text, text2, muted;
-  final Color body, brown, warnbg, warn, sel, okbg, ok, avatar, infobg, info, bad;
-  final Color input, hint;
+  final Color primary, onPrimary, accent;
+  final Color bg, card, soft, seg, line, line2, line3, text, text2, muted, body;
+  final Color warnbg, warn, okbg, ok, infobg, info, bad, input, hint;
 
-  static const light = Pal(
-    dark: false,
-    accent: Color(0xFF0B6770),
-    bg: Color(0xFFF5EFE4),
-    card: Color(0xFFFFFFFF),
-    soft: Color(0xFFEEF2F3),
-    seg: Color(0xFFE3E8EA),
-    line: Color(0xFFE3E8EA),
-    line2: Color(0xFFCFD8DB),
-    line3: Color(0xFFEEF2F3),
-    text: Color(0xFF13262B),
-    text2: Color(0xFF3D4F54),
-    muted: Color(0xFF4E5E63),
-    body: Color(0xFF263A3F),
-    brown: Color(0xFF6B3F1D),
-    warnbg: Color(0xFFFFF3DC),
-    warn: Color(0xFF6B4500),
-    sel: Color(0xFFEEF7F8),
-    okbg: Color(0xFFE2F4E7),
-    ok: Color(0xFF17703A),
-    avatar: Color(0xFFD6EEF0),
-    infobg: Color(0xFFE4E7FB),
-    info: Color(0xFF2E3790),
-    bad: Color(0xFFA33A2B),
-    input: Color(0xFFFFFFFF),
-    hint: Color(0xFF8A989C),
-  );
+  /// Полупрозрачные варианты.
+  Color get sel => primary.withAlpha(dark ? 40 : 26);
+  Color get avatar => primary.withAlpha(dark ? 56 : 36);
+  Color get brown => muted;
+  Color glass([double a = .72]) => bg.withAlpha((a * 255).round());
+  Color get glassLine => dark ? const Color(0x1AFFFFFF) : const Color(0x14000000);
+  LinearGradient get primaryGradient => LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color.lerp(primary, Colors.white, .12)!, Color.lerp(primary, Colors.black, .12)!],
+      );
 
-  static const darkPal = Pal(
-    dark: true,
-    accent: Color(0xFF6FD6DE),
-    bg: Color(0xFF0B1416),
-    card: Color(0xFF152225),
-    soft: Color(0xFF1E2E32),
-    seg: Color(0xFF1E2E32),
-    line: Color(0xFF24363A),
-    line2: Color(0xFF34494E),
-    line3: Color(0xFF1E2E32),
-    text: Color(0xFFFFFFFF),
-    text2: Color(0xFFE3EAEC),
-    muted: Color(0xFFB8C5C8),
-    body: Color(0xFFF0F4F5),
-    brown: Color(0xFFFFFFFF),
-    warnbg: Color(0xFF33290F),
-    warn: Color(0xFFF5DFA8),
-    sel: Color(0xFF1B3236),
-    okbg: Color(0xFF163A22),
-    ok: Color(0xFF8EE0A8),
-    avatar: Color(0xFF123A3E),
-    infobg: Color(0xFF22264A),
-    info: Color(0xFFC3C8F7),
-    bad: Color(0xFFF5A99C),
-    input: Color(0xFF1E2E32),
-    hint: Color(0xFF8FA0A4),
-  );
+  factory Pal.make(bool dark, Color primary) {
+    final onPrimary = primary.computeLuminance() > .5 ? const Color(0xFF15120A) : Colors.white;
+    if (dark) {
+      return Pal._(
+        dark: true,
+        primary: primary,
+        onPrimary: onPrimary,
+        accent: Color.lerp(primary, Colors.white, .22)!,
+        bg: const Color(0xFF0B0C10),
+        card: const Color(0xFF15171D),
+        soft: const Color(0xFF1D2028),
+        seg: const Color(0xFF121419),
+        line: const Color(0x14FFFFFF),
+        line2: const Color(0x24FFFFFF),
+        line3: const Color(0x0FFFFFFF),
+        text: const Color(0xFFF5F6F8),
+        text2: const Color(0xFFC7CBD3),
+        muted: const Color(0xFF8B91A0),
+        body: const Color(0xFFDCE0E6),
+        warnbg: const Color(0xFF2A2210),
+        warn: const Color(0xFFFBBF24),
+        okbg: const Color(0xFF102A1D),
+        ok: const Color(0xFF4ADE80),
+        infobg: const Color(0xFF171B33),
+        info: const Color(0xFFA5B4FC),
+        bad: const Color(0xFFF87171),
+        input: const Color(0xFF1A1D24),
+        hint: const Color(0xFF6B7180),
+      );
+    }
+    return Pal._(
+      dark: false,
+      primary: primary,
+      onPrimary: onPrimary,
+      accent: Color.lerp(primary, Colors.black, .22)!,
+      bg: const Color(0xFFF5F6F8),
+      card: const Color(0xFFFFFFFF),
+      soft: const Color(0xFFF0F1F4),
+      seg: const Color(0xFFEBEDF0),
+      line: const Color(0xFFE7E9EE),
+      line2: const Color(0xFFD9DCE3),
+      line3: const Color(0xFFF0F1F4),
+      text: const Color(0xFF0F1115),
+      text2: const Color(0xFF3A3F4A),
+      muted: const Color(0xFF6B7280),
+      body: const Color(0xFF262A33),
+      warnbg: const Color(0xFFFFF6E6),
+      warn: const Color(0xFF8A5A00),
+      okbg: const Color(0xFFE7F7EE),
+      ok: const Color(0xFF15803D),
+      infobg: const Color(0xFFEEF0FF),
+      info: const Color(0xFF3730A3),
+      bad: const Color(0xFFDC2626),
+      input: const Color(0xFFF3F4F6),
+      hint: const Color(0xFF9CA3AF),
+    );
+  }
 
-  static Pal of(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? darkPal : light;
+  static Pal of(BuildContext context) {
+    final t = Theme.of(context);
+    return Pal.make(t.brightness == Brightness.dark, t.colorScheme.primary);
+  }
 }
 
-/// Пары «фон / цвет значка» для плашек и их тёмные версии.
-const sectionTint = {
-  Section.ads: [0xFFDDF0F2, 0xFF0B6770],
-  Section.services: [0xFFFCE9D9, 0xFF9A4A0C],
-  Section.jobs: [0xFFE4E7FB, 0xFF3A44A8],
+/// Пары «фон / цвет значка» для категорий (используются как оттенки).
+const catHues = [0xFF14B8A6, 0xFFF59E0B, 0xFF6366F1, 0xFF22C55E, 0xFFF43F5E, 0xFFA855F7, 0xFF3B82F6];
+
+const sectionHue = {
+  Section.ads: 0xFF14B8A6,
+  Section.services: 0xFFF59E0B,
+  Section.jobs: 0xFF6366F1,
 };
-
-const catColors = [
-  [0xFFDDF0F2, 0xFF0B6770],
-  [0xFFFCE9D9, 0xFF9A4A0C],
-  [0xFFE4E7FB, 0xFF3A44A8],
-  [0xFFE2F4E7, 0xFF17703A],
-  [0xFFFBE1DD, 0xFFA33A2B],
-  [0xFFF3E6FA, 0xFF7A3A96],
-  [0xFFFFF3DC, 0xFF8A5A00],
-];
-
-const _darkTints = {
-  0xFFDDF0F2: [0xFF123A3E, 0xFF7FD6DC],
-  0xFFFCE9D9: [0xFF3E2716, 0xFFF5B98A],
-  0xFFE4E7FB: [0xFF22264A, 0xFFAEB5F5],
-  0xFFE2F4E7: [0xFF163A22, 0xFF8EE0A8],
-  0xFFFBE1DD: [0xFF45201B, 0xFFF5A99C],
-  0xFFF3E6FA: [0xFF33203D, 0xFFD9A8EE],
-  0xFFFFF3DC: [0xFF3A2E10, 0xFFF5D58A],
-};
-
-List<int> tint(List<int> pair, bool dark) =>
-    dark && _darkTints.containsKey(pair[0]) ? _darkTints[pair[0]]! : pair;
 
 Color withAlpha(int argb, double a) =>
     Color(((a * 255).round().clamp(0, 255) << 24) | (argb & 0xFFFFFF));
 
-TextStyle heading(double size, {FontWeight weight = FontWeight.w700, Color? color, double height = 1.3}) =>
-    GoogleFonts.manrope(fontSize: size, fontWeight: weight, color: color, height: height);
+TextStyle heading(double size, {FontWeight weight = FontWeight.w700, Color? color, double height = 1.25}) =>
+    GoogleFonts.manrope(fontSize: size, fontWeight: weight, color: color, height: height, letterSpacing: -.2);
 
-ThemeData buildTheme(Brightness b) {
-  final p = b == Brightness.dark ? Pal.darkPal : Pal.light;
-  final scheme = ColorScheme.fromSeed(seedColor: teal, brightness: b)
-      .copyWith(primary: p.accent, surface: p.card, onSurface: p.text, error: p.bad);
+ThemeData buildTheme(Brightness b, Color primary) {
+  final p = Pal.make(b == Brightness.dark, primary);
+  final scheme = ColorScheme.fromSeed(seedColor: primary, brightness: b).copyWith(
+      primary: primary, onPrimary: p.onPrimary, surface: p.card, onSurface: p.text, error: p.bad);
   final base = ThemeData(
     useMaterial3: true,
     brightness: b,
     colorScheme: scheme,
     scaffoldBackgroundColor: p.bg,
-    splashColor: withAlpha(0xFF0B6770, 0.08),
-    highlightColor: withAlpha(0xFF0B6770, 0.05),
+    splashColor: primary.withAlpha(20),
+    highlightColor: primary.withAlpha(10),
+    dividerColor: p.line,
   );
   return base.copyWith(
-    textTheme: GoogleFonts.interTextTheme(base.textTheme)
-        .apply(bodyColor: p.text, displayColor: p.text),
-    textSelectionTheme: TextSelectionThemeData(cursorColor: p.accent),
-    progressIndicatorTheme: ProgressIndicatorThemeData(color: p.accent),
+    textTheme: GoogleFonts.interTextTheme(base.textTheme).apply(bodyColor: p.text, displayColor: p.text),
+    textSelectionTheme: TextSelectionThemeData(cursorColor: primary, selectionColor: primary.withAlpha(70)),
+    progressIndicatorTheme: ProgressIndicatorThemeData(color: primary),
   );
 }
 
@@ -232,6 +236,8 @@ const ic = <String, String>{
   'copy': 'M9 9h11v11H9z M5 15H4V4h11v1',
   'shield': 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z M8.5 12l2.5 2.5 4.5-5',
   'image': 'M3 5h18v14H3z M3 16l5-5 4 4 3-3 6 6 M15.5 9.5h.01',
+  'calendar': 'M4 6h16v14H4z M4 10h16 M8 3v4 M16 3v4',
+  'pyramid': 'M12 3L22 20H2z M12 3l3.5 17',
 };
 
 const catIcon = {
@@ -411,193 +417,6 @@ class _IcoPainter extends CustomPainter {
       o.d != d || o.color != color || o.stroke != stroke || o.fill != fill;
 }
 
-// =====================================================================
-// Пейзаж с пирамидами (шапки экранов)
-// =====================================================================
-
-/// Тёмная тема: как в макете — яркость .45 и чуть меньше насыщенности.
-Color sceneColor(int v, bool dark) {
-  if (!dark) return Color(v);
-  final r = (v >> 16) & 255, g = (v >> 8) & 255, b = v & 255;
-  int cl(double x) => x.round().clamp(0, 255);
-  final nr = cl(.3792 * r + .0644 * g + .0065 * b);
-  final ng = cl(.0192 * r + .4244 * g + .0065 * b);
-  final nb = cl(.0192 * r + .0644 * g + .3665 * b);
-  return Color(0xFF000000 | (nr << 16) | (ng << 8) | nb);
-}
-
-void _fill(Canvas c, String d, Color col) => c.drawPath(svgPath(d), Paint()..color = col);
-
-const _palmTrunk = 'M62 162 C60 140 58 125 64 106';
-const _palmLeaves =
-    'M64 106 C50 96 36 100 28 110 C42 104 54 106 64 106z M64 106 C74 92 90 92 100 100 C86 98 74 102 64 106z M64 106 C58 90 62 80 72 76 C68 88 68 96 64 106z M64 106 C76 104 92 110 96 122 C86 112 74 110 64 106z M64 106 C52 108 40 116 38 128 C46 118 56 112 64 106z';
-
-/// Большая сцена: шапка ленты и экран входа (viewBox 390×vbH, xMidYMin slice).
-class BigScene extends CustomPainter {
-  BigScene({required this.dark, required this.bottom, this.vbH = 314});
-  final bool dark;
-  final Color bottom;
-  final double vbH;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    Color c(int v) => sceneColor(v, dark);
-    final s = math.max(size.width / 390, size.height / vbH);
-    canvas.save();
-    canvas.clipRect(Offset.zero & size);
-    canvas.translate((size.width - 390 * s) / 2, 0);
-    canvas.scale(s);
-    final rect = Rect.fromLTWH(0, 0, 390, vbH);
-    canvas.drawRect(
-        rect,
-        Paint()
-          ..shader = LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [c(0xFFFBE7C6), c(0xFFF4BC80)],
-          ).createShader(rect));
-    canvas.drawCircle(const Offset(322, 96), 26, Paint()..color = c(0xFFF7A956));
-    _fill(canvas, 'M0 140 C60 120 120 128 180 136 C240 144 300 122 390 132 V160 H0z', c(0xFFEDB97C));
-    _fill(canvas, 'M250 80 L312 152 H188z', c(0xFFE09A55));
-    _fill(canvas, 'M250 80 L312 152 H262z', c(0xFFBF7638));
-    _fill(canvas, 'M338 112 L368 152 H308z', c(0xFFE09A55));
-    _fill(canvas, 'M338 112 L368 152 H344z', c(0xFFBF7638));
-    _fill(canvas, 'M182 116 L212 152 H152z', c(0xFFE7A867));
-    _fill(canvas, 'M182 116 L212 152 H188z', c(0xFFC7813F));
-    canvas.drawRect(const Rect.fromLTWH(0, 150, 390, 18), Paint()..color = c(0xFF1E8A93));
-    canvas.drawPath(
-        svgPath('M30 160 h40 M200 157 h40 M300 162 h50'),
-        Paint()
-          ..color = c(0xFF7FD0D4)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..strokeCap = StrokeCap.round);
-    _fill(canvas, 'M140 161 h26 l-4 5 h-18z', c(0xFF5A3B22));
-    _fill(canvas, 'M152 160 V134 L167 157z', c(0xFFFFFFFF));
-    void palm(int leaf) {
-      canvas.drawPath(
-          svgPath(_palmTrunk),
-          Paint()
-            ..color = c(0xFF7A5532)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 5
-            ..strokeCap = StrokeCap.round);
-      _fill(canvas, _palmLeaves, c(leaf));
-    }
-
-    palm(0xFF2F6B4F);
-    canvas.save();
-    canvas.translate(66, 32);
-    canvas.scale(0.75);
-    palm(0xFF3A7D5C);
-    canvas.restore();
-    // Нижний край сливается с фоном экрана (не затемняем).
-    final bottomPath = Path()
-      ..moveTo(0, 166)
-      ..cubicTo(90, 158, 200, 170, 390, 162)
-      ..lineTo(390, math.max(vbH, size.height / s) + 2)
-      ..lineTo(0, math.max(vbH, size.height / s) + 2)
-      ..close();
-    canvas.drawPath(bottomPath, Paint()..color = bottom);
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(BigScene o) => o.dark != dark || o.bottom != bottom || o.vbH != vbH;
-}
-
-/// Узкая сцена для шапок внутренних экранов (viewBox 390×72, xMaxYMax slice).
-class SmallScene extends CustomPainter {
-  SmallScene({required this.dark});
-  final bool dark;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    Color c(int v) => sceneColor(v, dark);
-    final s = math.max(size.width / 390, size.height / 72);
-    canvas.save();
-    canvas.clipRect(Offset.zero & size);
-    canvas.translate(size.width - 390 * s, size.height - 72 * s);
-    canvas.scale(s);
-    const rect = Rect.fromLTWH(0, 0, 390, 72);
-    canvas.drawRect(
-        rect,
-        Paint()
-          ..shader = LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [c(0xFFFBE7C6), c(0xFFF6C894)],
-          ).createShader(rect));
-    canvas.drawCircle(const Offset(300, 30), 13, Paint()..color = c(0xFFF7A956));
-    _fill(canvas, 'M0 58 C80 50 160 56 240 54 C300 52 340 48 390 52 V72 H0z', c(0xFFEDB97C));
-    _fill(canvas, 'M330 22 L368 64 H292z', c(0xFFE09A55));
-    _fill(canvas, 'M330 22 L368 64 H337z', c(0xFFBF7638));
-    _fill(canvas, 'M262 38 L284 64 H240z', c(0xFFE7A867));
-    _fill(canvas, 'M262 38 L284 64 H266z', c(0xFFC7813F));
-    canvas.drawRect(const Rect.fromLTWH(0, 64, 390, 8), Paint()..color = c(0xFF1E8A93));
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(SmallScene o) => o.dark != dark;
-}
-
-/// Узоры на цветных плашках (новости, карточка без фото).
-class BannerDeco extends CustomPainter {
-  BannerDeco({required this.ink, required this.big});
-  final int ink;
-  final bool big;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = big ? 358.0 : 358.0, h = big ? 210.0 : 96.0;
-    final s = math.max(size.width / w, size.height / h);
-    canvas.save();
-    canvas.clipRect(Offset.zero & size);
-    canvas.translate((size.width - w * s) / 2, size.height - h * s);
-    canvas.scale(s);
-    if (big) {
-      canvas.drawCircle(const Offset(300, 50), 22, Paint()..color = withAlpha(0xFFFFFFFF, .55));
-      canvas.drawCircle(const Offset(40, 40), 10, Paint()..color = withAlpha(0xFFFFFFFF, .45));
-      _fill(canvas, 'M0 170 C80 155 170 175 358 160 V210 H0z', withAlpha(ink, .12));
-      _fill(canvas, 'M280 120 L330 180 H230z', withAlpha(ink, .16));
-      _fill(canvas, 'M60 140 L92 180 H28z', withAlpha(ink, .12));
-    } else {
-      _fill(canvas, 'M300 30 L344 96 H256z', withAlpha(ink, .14));
-      _fill(canvas, 'M240 54 L268 96 H212z', withAlpha(ink, .10));
-      _fill(canvas, 'M0 84 C90 74 200 90 358 80 V96 H0z', withAlpha(ink, .10));
-    }
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(BannerDeco o) => o.ink != ink || o.big != big;
-}
-
-class DashedBorder extends CustomPainter {
-  DashedBorder(this.color);
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rr = RRect.fromRectAndRadius(
-        (Offset.zero & size).deflate(1), const Radius.circular(14));
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    for (final m in (Path()..addRRect(rr)).computeMetrics()) {
-      var d = 0.0;
-      while (d < m.length) {
-        canvas.drawPath(m.extractPath(d, math.min(d + 6, m.length)), paint);
-        d += 11;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(DashedBorder o) => o.color != color;
-}
 
 // =====================================================================
 // Общие элементы интерфейса
@@ -611,14 +430,94 @@ class AppScope extends InheritedNotifier<AppState> {
       context.dependOnInheritedWidgetOfExactType<AppScope>()!.notifier!;
 }
 
+/// Матовое стекло: размытие того, что под ним.
+class Glass extends StatelessWidget {
+  const Glass({super.key, required this.child, this.radius = 0, this.opacity = .72, this.blur = 22, this.border = true, this.padding, this.color});
+  final Widget child;
+  final double radius;
+  final double opacity;
+  final double blur;
+  final bool border;
+  final EdgeInsetsGeometry? padding;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+    final br = BorderRadius.circular(radius);
+    return ClipRRect(
+      borderRadius: br,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: color ?? p.glass(opacity),
+            borderRadius: br,
+            border: border ? Border.all(color: p.glassLine) : null,
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// Мягкое цветное свечение на фоне (цвет акцента).
+class GlowBackground extends StatelessWidget {
+  const GlowBackground({super.key, required this.child, this.strong = false});
+  final Widget child;
+  final bool strong;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+    final a1 = p.dark ? (strong ? 90 : 60) : (strong ? 60 : 38);
+    final second = Color.lerp(p.primary, const Color(0xFF6366F1), .55)!;
+    return Stack(children: [
+      Positioned.fill(child: ColoredBox(color: p.bg)),
+      Positioned(
+        top: -160,
+        left: -120,
+        child: _blob(p.primary.withAlpha(a1), 420),
+      ),
+      Positioned(
+        top: -60,
+        right: -160,
+        child: _blob(second.withAlpha((a1 * .7).round()), 380),
+      ),
+      if (strong)
+        Positioned(
+          bottom: -200,
+          left: -80,
+          child: _blob(p.primary.withAlpha((a1 * .6).round()), 420),
+        ),
+      Positioned.fill(child: child),
+    ]);
+  }
+
+  Widget _blob(Color c, double size) => IgnorePointer(
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(colors: [c, c.withAlpha(0)]),
+          ),
+        ),
+      );
+}
+
 void toast(BuildContext context, String text) {
   final m = ScaffoldMessenger.of(context);
   m.hideCurrentSnackBar();
   m.showSnackBar(SnackBar(
     content: Text(text, style: const TextStyle(color: Colors.white, fontSize: 14)),
     behavior: SnackBarBehavior.floating,
-    backgroundColor: const Color(0xFF13262B),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    backgroundColor: const Color(0xF01C1F27),
+    elevation: 0,
+    shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Color(0x1FFFFFFF))),
     margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
     duration: const Duration(milliseconds: 2400),
   ));
@@ -627,25 +526,58 @@ void toast(BuildContext context, String text) {
 Future<T?> push<T>(BuildContext context, Widget page) =>
     Navigator.push<T>(context, MaterialPageRoute(builder: (_) => page));
 
+Future<T?> showGlassSheet<T>(BuildContext context, WidgetBuilder builder) {
+  final p = Pal.of(context);
+  return showModalBottomSheet<T>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    barrierColor: const Color(0x8C000000),
+    builder: (ctx) => Glass(
+      radius: 28,
+      opacity: p.dark ? .86 : .92,
+      blur: 28,
+      child: builder(ctx),
+    ),
+  );
+}
+
 /// Просим войти: закрываем все экраны и показываем вход.
 Future<void> askLogin(BuildContext context, String why) async {
   final p = Pal.of(context);
   final go = await showDialog<bool>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      backgroundColor: p.card,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Text('Нужен вход', style: heading(19, color: p.text)),
-      content: Text(why, style: TextStyle(fontSize: 15, color: p.text2, height: 1.45)),
-      actions: [
-        TextButton(
+    barrierColor: const Color(0x8C000000),
+    builder: (ctx) => Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Glass(
+        radius: 24,
+        opacity: p.dark ? .88 : .95,
+        padding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Container(
+            width: 48,
+            height: 48,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(gradient: p.primaryGradient, borderRadius: BorderRadius.circular(14)),
+            child: Ico('user', size: 24, color: p.onPrimary),
+          ),
+          const SizedBox(height: 14),
+          Text('Нужен вход', style: heading(20, weight: FontWeight.w800, color: p.text)),
+          const SizedBox(height: 6),
+          Text(why, style: TextStyle(fontSize: 15, color: p.text2, height: 1.45)),
+          const SizedBox(height: 18),
+          PrimaryButton('Войти', height: 48, onPressed: () => Navigator.pop(ctx, true)),
+          const SizedBox(height: 4),
+          TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Не сейчас', style: TextStyle(color: p.muted))),
-        FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: teal, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Войти')),
-      ],
+            style: TextButton.styleFrom(foregroundColor: p.muted, minimumSize: const Size.fromHeight(44)),
+            child: const Text('Не сейчас'),
+          ),
+        ]),
+      ),
     ),
   );
   if (go == true && context.mounted) {
@@ -655,8 +587,52 @@ Future<void> askLogin(BuildContext context, String why) async {
   }
 }
 
+Future<bool> confirmDialog(BuildContext context, String title, String text, String yes, {bool danger = true}) async {
+  final p = Pal.of(context);
+  final r = await showDialog<bool>(
+    context: context,
+    barrierColor: const Color(0x8C000000),
+    builder: (ctx) => Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Glass(
+        radius: 24,
+        opacity: p.dark ? .88 : .95,
+        padding: const EdgeInsets.fromLTRB(22, 22, 22, 14),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(title, style: heading(19, weight: FontWeight.w800, color: p.text)),
+          const SizedBox(height: 6),
+          Text(text, style: TextStyle(fontSize: 15, color: p.text2, height: 1.45)),
+          const SizedBox(height: 16),
+          Row(children: [
+            Expanded(child: OutlineBtn('Отмена', color: p.text, onPressed: () => Navigator.pop(ctx, false))),
+            const SizedBox(width: 10),
+            Expanded(
+              child: SizedBox(
+                height: 46,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: danger ? p.bad : p.primary,
+                    foregroundColor: danger ? Colors.white : p.onPrimary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                  child: Text(yes),
+                ),
+              ),
+            ),
+          ]),
+        ]),
+      ),
+    ),
+  );
+  return r == true;
+}
+
 class Box extends StatelessWidget {
-  const Box({super.key, required this.child, this.padding = const EdgeInsets.all(14), this.radius = 16, this.color, this.onTap});
+  const Box({super.key, required this.child, this.padding = const EdgeInsets.all(14), this.radius = 18, this.color, this.onTap});
   final Widget child;
   final EdgeInsetsGeometry padding;
   final double radius;
@@ -677,7 +653,7 @@ class Box extends StatelessWidget {
 }
 
 class PrimaryButton extends StatelessWidget {
-  const PrimaryButton(this.label, {super.key, required this.onPressed, this.busy = false, this.height = 52, this.icon});
+  const PrimaryButton(this.label, {super.key, required this.onPressed, this.busy = false, this.height = 50, this.icon});
   final String label;
   final VoidCallback? onPressed;
   final bool busy;
@@ -686,25 +662,33 @@ class PrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: height,
-      child: FilledButton(
-        onPressed: busy ? null : onPressed,
-        style: FilledButton.styleFrom(
-          backgroundColor: teal,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: withAlpha(0xFF0B6770, .55),
-          disabledForegroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+    final p = Pal.of(context);
+    final enabled = onPressed != null && !busy;
+    return Opacity(
+      opacity: enabled || busy ? 1 : .5,
+      child: Container(
+        height: height,
+        decoration: BoxDecoration(
+          gradient: p.primaryGradient,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: p.primary.withAlpha(p.dark ? 70 : 60), blurRadius: 18, offset: const Offset(0, 6))],
         ),
-        child: busy
-            ? const SizedBox(
-                width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-            : Row(mainAxisSize: MainAxisSize.min, children: [
-                if (icon != null) ...[Ico(icon!, size: 20, color: Colors.white), const SizedBox(width: 8)],
-                Text(label),
-              ]),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: enabled ? onPressed : null,
+            child: Center(
+              child: busy
+                  ? SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: p.onPrimary))
+                  : Row(mainAxisSize: MainAxisSize.min, children: [
+                      if (icon != null) ...[Ico(icon!, size: 19, color: p.onPrimary), const SizedBox(width: 8)],
+                      Text(label, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.onPrimary)),
+                    ]),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -728,8 +712,8 @@ class OutlineBtn extends StatelessWidget {
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
           foregroundColor: fg,
-          backgroundColor: p.card,
-          side: BorderSide(color: p.line2),
+          backgroundColor: p.soft,
+          side: BorderSide(color: p.line),
           padding: const EdgeInsets.symmetric(horizontal: 10),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
@@ -744,7 +728,7 @@ class OutlineBtn extends StatelessWidget {
 }
 
 OutlineInputBorder _border(Color c, [double w = 1]) => OutlineInputBorder(
-    borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c, width: w));
+    borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: c, width: w));
 
 InputDecoration fieldDecoration(Pal p, {String? hint, Widget? suffix, bool enabled = true}) =>
     InputDecoration(
@@ -752,13 +736,13 @@ InputDecoration fieldDecoration(Pal p, {String? hint, Widget? suffix, bool enabl
       hintStyle: TextStyle(color: p.hint, fontSize: 15),
       isDense: true,
       filled: true,
-      fillColor: enabled ? p.input : p.soft,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+      fillColor: enabled ? p.input : p.seg,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       suffixIcon: suffix,
-      border: _border(p.line2),
-      enabledBorder: _border(p.line2),
-      disabledBorder: _border(p.line),
-      focusedBorder: _border(p.accent, 1.6),
+      border: _border(p.line),
+      enabledBorder: _border(p.line),
+      disabledBorder: _border(Colors.transparent),
+      focusedBorder: _border(p.primary, 1.6),
       errorBorder: _border(p.bad),
       focusedErrorBorder: _border(p.bad, 1.6),
       errorStyle: TextStyle(color: p.bad, fontSize: 12),
@@ -801,7 +785,10 @@ class Field extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Pal.of(context);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-      Text(label, style: TextStyle(fontSize: 13, color: p.text2, fontWeight: FontWeight.w500)),
+      Padding(
+        padding: const EdgeInsets.only(left: 2),
+        child: Text(label, style: TextStyle(fontSize: 13, color: p.muted, fontWeight: FontWeight.w600)),
+      ),
       const SizedBox(height: 6),
       TextFormField(
         controller: controller,
@@ -834,11 +821,14 @@ class PickField extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Pal.of(context);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-      Text(label, style: TextStyle(fontSize: 13, color: p.text2, fontWeight: FontWeight.w500)),
+      Padding(
+        padding: const EdgeInsets.only(left: 2),
+        child: Text(label, style: TextStyle(fontSize: 13, color: p.muted, fontWeight: FontWeight.w600)),
+      ),
       const SizedBox(height: 6),
       Material(
         color: p.input,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: p.line2)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: p.line)),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () async {
@@ -846,9 +836,9 @@ class PickField extends StatelessWidget {
             if (v != null) onChanged(v);
           },
           child: SizedBox(
-            height: 46,
+            height: 48,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
               child: Row(children: [
                 Expanded(
                     child: Text(value,
@@ -864,30 +854,30 @@ class PickField extends StatelessWidget {
 }
 
 Future<String?> pickOption(BuildContext context, String title, List<String> options, String current) {
-  final p = Pal.of(context);
-  return showModalBottomSheet<String>(
-    context: context,
-    backgroundColor: p.card,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-    builder: (ctx) => SafeArea(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * .75),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          const SheetHandle(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-            child: Text(title, style: heading(18, color: p.text)),
-          ),
-          Flexible(
-            child: ListView(shrinkWrap: true, padding: const EdgeInsets.fromLTRB(8, 0, 8, 12), children: [
-              for (final o in options)
-                OptionRow(label: o, selected: o == current, onTap: () => Navigator.pop(ctx, o)),
-            ]),
-          ),
-        ]),
-      ),
-    ),
+  return showGlassSheet<String>(
+    context,
+    (ctx) {
+      final p = Pal.of(ctx);
+      return SafeArea(
+        top: false,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * .75),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const SheetHandle(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Text(title, style: heading(18, weight: FontWeight.w800, color: p.text)),
+            ),
+            Flexible(
+              child: ListView(shrinkWrap: true, padding: const EdgeInsets.fromLTRB(10, 0, 10, 14), children: [
+                for (final o in options)
+                  OptionRow(label: o, selected: o == current, onTap: () => Navigator.pop(ctx, o)),
+              ]),
+            ),
+          ]),
+        ),
+      );
+    },
   );
 }
 
@@ -902,16 +892,19 @@ class OptionRow extends StatelessWidget {
     final p = Pal.of(context);
     return Material(
       color: selected ? p.sel : Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: SizedBox(
           height: 48,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             child: Row(children: [
-              Expanded(child: Text(label, style: TextStyle(fontSize: 15, color: p.text))),
+              Expanded(
+                  child: Text(label,
+                      style: TextStyle(
+                          fontSize: 15, color: selected ? p.accent : p.text, fontWeight: selected ? FontWeight.w700 : FontWeight.w500))),
               if (selected) Ico('check', size: 20, color: p.accent, stroke: 2.4),
             ]),
           ),
@@ -927,15 +920,14 @@ class SheetHandle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
         child: Container(
-          margin: const EdgeInsets.only(top: 12, bottom: 10),
-          width: 40,
+          margin: const EdgeInsets.only(top: 10, bottom: 10),
+          width: 38,
           height: 4,
           decoration: BoxDecoration(color: Pal.of(context).line2, borderRadius: BorderRadius.circular(2)),
         ),
       );
 }
 
-/// Переключатель как в макете.
 class Toggle extends StatelessWidget {
   const Toggle({super.key, required this.value});
   final bool value;
@@ -944,23 +936,23 @@ class Toggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Pal.of(context);
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
+      duration: const Duration(milliseconds: 180),
       width: 46,
       height: 28,
       padding: const EdgeInsets.all(3),
       alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-      decoration: BoxDecoration(color: value ? teal : p.line2, borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(color: value ? p.primary : p.line2, borderRadius: BorderRadius.circular(14)),
       child: Container(
           width: 22, height: 22, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle)),
     );
   }
 }
 
-/// Сегменты («Объявление / Услуга / Работа», тема и т. п.).
 class Segments<T> extends StatelessWidget {
-  const Segments({super.key, required this.values, required this.labels, required this.selected, required this.onChanged});
+  const Segments({super.key, required this.values, required this.labels, required this.selected, required this.onChanged, this.icons});
   final List<T> values;
   final List<String> labels;
+  final List<String>? icons;
   final T selected;
   final ValueChanged<T> onChanged;
 
@@ -969,7 +961,7 @@ class Segments<T> extends StatelessWidget {
     final p = Pal.of(context);
     return Container(
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: p.seg, borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(color: p.seg, borderRadius: BorderRadius.circular(14), border: Border.all(color: p.line)),
       child: Row(children: [
         for (var i = 0; i < values.length; i++)
           Expanded(
@@ -977,23 +969,31 @@ class Segments<T> extends StatelessWidget {
               behavior: HitTestBehavior.opaque,
               onTap: () => onChanged(values[i]),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                height: 40,
+                duration: const Duration(milliseconds: 180),
+                height: 38,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: values[i] == selected ? p.card : Colors.transparent,
+                  color: values[i] == selected ? (p.dark ? p.soft : p.card) : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
                   boxShadow: values[i] == selected
-                      ? [BoxShadow(color: withAlpha(0xFF000000, .06), blurRadius: 4, offset: const Offset(0, 1))]
+                      ? [BoxShadow(color: Colors.black.withAlpha(p.dark ? 60 : 18), blurRadius: 6, offset: const Offset(0, 2))]
                       : null,
                 ),
-                child: Text(labels[i],
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: values[i] == selected ? p.accent : p.text2)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (icons != null) ...[
+                    Ico(icons![i], size: 16, color: values[i] == selected ? p.accent : p.muted),
+                    const SizedBox(width: 6),
+                  ],
+                  Flexible(
+                    child: Text(labels[i],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: values[i] == selected ? p.text : p.muted)),
+                  ),
+                ]),
               ),
             ),
           ),
@@ -1011,8 +1011,8 @@ class Pill extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: EdgeInsets.symmetric(horizontal: big ? 12 : 8, vertical: big ? 6 : 3),
-        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(big ? 14 : 8)),
-        child: Text(text, style: TextStyle(fontSize: 13, color: fg, fontWeight: FontWeight.w600, height: 1.2)),
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(big ? 12 : 8)),
+        child: Text(text, style: TextStyle(fontSize: big ? 13 : 12, color: fg, fontWeight: FontWeight.w600, height: 1.2)),
       );
 }
 
@@ -1040,8 +1040,7 @@ class Avatar extends StatelessWidget {
     final p = Pal.of(context);
     final letter = Center(
       child: Text(initialOf(name),
-          style: TextStyle(
-              fontSize: size * .4, fontWeight: size > 60 ? FontWeight.w800 : FontWeight.w700, color: fg ?? p.accent)),
+          style: TextStyle(fontSize: size * .4, fontWeight: FontWeight.w800, color: fg ?? p.accent)),
     );
     return Container(
       width: size,
@@ -1065,9 +1064,9 @@ class SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Pal.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 8, 0, 0),
+      padding: const EdgeInsets.fromLTRB(4, 10, 0, 0),
       child: Row(children: [
-        Expanded(child: Text(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: p.text))),
+        Expanded(child: Text(text, style: heading(17, weight: FontWeight.w800, color: p.text))),
         if (action != null)
           TextButton(
               onPressed: onAction,
@@ -1089,18 +1088,22 @@ class EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Pal.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
+      padding: const EdgeInsets.fromLTRB(28, 48, 28, 24),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(color: p.avatar, shape: BoxShape.circle),
+          width: 76,
+          height: 76,
+          decoration: BoxDecoration(
+            color: p.sel,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: p.primary.withAlpha(50)),
+          ),
           child: Center(child: Ico(icon, size: 32, color: p.accent, stroke: 1.8)),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
         Text(text, textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: p.muted, height: 1.5)),
         if (action != null) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           SizedBox(width: 240, child: PrimaryButton(action!, onPressed: onAction, height: 48)),
         ],
       ]),
@@ -1108,7 +1111,49 @@ class EmptyState extends StatelessWidget {
   }
 }
 
-/// Шапка внутренних экранов: пейзаж + «назад» + заголовок.
+/// Круглая кнопка-значок. glass = на стекле поверх фото.
+class IconBtn extends StatelessWidget {
+  const IconBtn(this.icon, {super.key, required this.onTap, this.label, this.color, this.fill, this.size = 20, this.box = 40, this.glass = false, this.plain = false});
+  final String icon;
+  final VoidCallback? onTap;
+  final String? label;
+  final Color? color;
+  final Color? fill;
+  final double size;
+  final double box;
+  final bool glass;
+  final bool plain;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+    final ico = Center(child: Ico(icon, size: size, color: color ?? p.text, stroke: 2, fill: fill));
+    Widget body;
+    if (plain) {
+      body = SizedBox(width: box, height: box, child: ico);
+    } else if (glass) {
+      body = SizedBox(
+        width: box,
+        height: box,
+        child: Glass(radius: box / 2, opacity: p.dark ? .55 : .7, blur: 16, child: ico),
+      );
+    } else {
+      body = Container(
+        width: box,
+        height: box,
+        decoration: BoxDecoration(color: p.soft, shape: BoxShape.circle, border: Border.all(color: p.line)),
+        child: ico,
+      );
+    }
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(onTap: onTap, behavior: HitTestBehavior.opaque, child: body),
+    );
+  }
+}
+
+/// Шапка внутренних экранов: «назад» + заголовок.
 class SubHeader extends StatelessWidget {
   const SubHeader({super.key, required this.title, this.leading = 'back', this.trailing, this.center = false});
   final String title;
@@ -1121,49 +1166,64 @@ class SubHeader extends StatelessWidget {
     final p = Pal.of(context);
     final top = MediaQuery.of(context).padding.top;
     final titleW = Text(title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(fontWeight: center ? FontWeight.w600 : FontWeight.w700, fontSize: center ? 16 : 17, color: p.text));
-    return Stack(children: [
-      Positioned.fill(child: CustomPaint(painter: SmallScene(dark: p.dark))),
-      Padding(
-        padding: EdgeInsets.fromLTRB(8, 8 + top, 8, 8),
-        child: Row(children: [
-          IconBtn(leading, onTap: () => Navigator.maybePop(context), label: leading == 'close' ? 'Закрыть' : 'Назад'),
-          const SizedBox(width: 4),
-          Expanded(child: center ? Center(child: titleW) : titleW),
-          trailing ?? const SizedBox(width: 44),
-        ]),
-      ),
-    ]);
+        maxLines: 1, overflow: TextOverflow.ellipsis, style: heading(18, weight: FontWeight.w800, color: p.text));
+    return Container(
+      padding: EdgeInsets.fromLTRB(12, 8 + top, 12, 8),
+      decoration: BoxDecoration(color: p.bg, border: Border(bottom: BorderSide(color: p.line3))),
+      child: Row(children: [
+        IconBtn(leading, onTap: () => Navigator.maybePop(context), label: leading == 'close' ? 'Закрыть' : 'Назад'),
+        const SizedBox(width: 12),
+        Expanded(child: center ? Center(child: titleW) : titleW),
+        const SizedBox(width: 8),
+        trailing ?? const SizedBox(width: 40),
+      ]),
+    );
   }
 }
 
-class IconBtn extends StatelessWidget {
-  const IconBtn(this.icon, {super.key, required this.onTap, this.label, this.color, this.fill, this.size = 22});
-  final String icon;
-  final VoidCallback? onTap;
-  final String? label;
-  final Color? color;
-  final Color? fill;
+/// Логотип: пирамида на градиенте акцента.
+class AppLogo extends StatelessWidget {
+  const AppLogo({super.key, this.size = 56});
   final double size;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: label,
-      child: InkResponse(
-        onTap: onTap,
-        radius: 24,
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Center(child: Ico(icon, size: size, color: color ?? Pal.of(context).text, stroke: 2.2, fill: fill)),
-        ),
+    final p = Pal.of(context);
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: p.primaryGradient,
+        borderRadius: BorderRadius.circular(size * .3),
+        boxShadow: [BoxShadow(color: p.primary.withAlpha(90), blurRadius: 24, offset: const Offset(0, 8))],
       ),
+      child: Center(child: Ico('pyramid', size: size * .56, color: p.onPrimary, stroke: 2, fill: p.onPrimary.withAlpha(60))),
     );
   }
+}
+
+class DashedBorder extends CustomPainter {
+  DashedBorder(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rr = RRect.fromRectAndRadius((Offset.zero & size).deflate(1), const Radius.circular(16));
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6;
+    for (final m in (Path()..addRRect(rr)).computeMetrics()) {
+      var d = 0.0;
+      while (d < m.length) {
+        canvas.drawPath(m.extractPath(d, math.min(d + 6, m.length)), paint);
+        d += 11;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(DashedBorder o) => o.color != color;
 }
 
 Future<void> openUrl(BuildContext context, String url, String fallbackCopy) async {
@@ -1200,6 +1260,7 @@ Future<List<Uint8List>> pickManyImages(int limit) async {
   return out;
 }
 
+
 // =====================================================================
 // Приложение
 // =====================================================================
@@ -1223,8 +1284,8 @@ class _SvoiAppState extends State<SvoiApp> {
         builder: (_, __) => MaterialApp(
           title: 'Свои в Египте',
           debugShowCheckedModeBanner: false,
-          theme: buildTheme(Brightness.light),
-          darkTheme: buildTheme(Brightness.dark),
+          theme: buildTheme(Brightness.light, accentColor(state.accent)),
+          darkTheme: buildTheme(Brightness.dark, accentColor(state.accent)),
           themeMode: state.themeMode,
           home: const AuthGate(),
         ),
@@ -1289,6 +1350,7 @@ class _AuthScreenState extends State<AuthScreen> {
   bool busy = false;
   bool hide = true;
   String? message;
+  bool good = false;
   final name = TextEditingController();
   final email = TextEditingController();
   final pass = TextEditingController();
@@ -1313,13 +1375,16 @@ class _AuthScreenState extends State<AuthScreen> {
     return m;
   }
 
+  void say(String m, {bool ok = false}) => setState(() {
+        message = m;
+        good = ok;
+      });
+
   Future<void> submit() async {
     final e = email.text.trim();
     final p = pass.text;
     if (!e.contains('@') || p.length < 6 || (register && name.text.trim().isEmpty)) {
-      setState(() => message = register
-          ? 'Заполните имя, почту и пароль (от 6 символов)'
-          : 'Введите почту и пароль (от 6 символов)');
+      say(register ? 'Заполните имя, почту и пароль (от 6 символов)' : 'Введите почту и пароль (от 6 символов)');
       return;
     }
     setState(() {
@@ -1331,15 +1396,15 @@ class _AuthScreenState extends State<AuthScreen> {
       if (register) {
         final res = await auth.signUp(email: e, password: p, data: {'name': name.text.trim()});
         if (res.session == null && mounted) {
-          setState(() => message = 'Готово! Проверьте почту и подтвердите адрес, затем войдите.');
+          say('Готово! Проверьте почту и подтвердите адрес, затем войдите.', ok: true);
         }
       } else {
         await auth.signInWithPassword(email: e, password: p);
       }
     } on AuthException catch (err) {
-      if (mounted) setState(() => message = translate(err.message));
+      if (mounted) say(translate(err.message));
     } catch (_) {
-      if (mounted) setState(() => message = 'Нет связи с сервером, попробуйте ещё раз');
+      if (mounted) say('Нет связи с сервером, попробуйте ещё раз');
     }
     if (mounted) setState(() => busy = false);
   }
@@ -1347,167 +1412,114 @@ class _AuthScreenState extends State<AuthScreen> {
   Future<void> resetPassword() async {
     final e = email.text.trim();
     if (!e.contains('@')) {
-      setState(() => message = 'Введите почту, и мы пришлём ссылку для сброса пароля');
+      say('Введите почту, и мы пришлём ссылку для сброса пароля');
       return;
     }
     try {
       await Supabase.instance.client.auth.resetPasswordForEmail(e);
-      if (mounted) setState(() => message = 'Письмо для сброса пароля отправлено');
+      if (mounted) say('Письмо для сброса пароля отправлено', ok: true);
     } catch (_) {
-      if (mounted) setState(() => message = 'Не удалось отправить письмо, попробуйте позже');
+      if (mounted) say('Не удалось отправить письмо, попробуйте позже');
     }
-  }
-
-  Widget authField(String label, TextEditingController c,
-      {String? hint, TextInputType? kb, bool obscure = false, Widget? suffix, ValueChanged<String>? onSubmit,
-      TextCapitalization cap = TextCapitalization.none}) {
-    OutlineInputBorder b(Color col, double w) =>
-        OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: col, width: w));
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Text(label, style: const TextStyle(fontSize: 13, color: Color(0xFFD6EEF0), fontWeight: FontWeight.w500)),
-      const SizedBox(height: 6),
-      TextField(
-        controller: c,
-        keyboardType: kb,
-        obscureText: obscure,
-        autocorrect: false,
-        textCapitalization: cap,
-        onSubmitted: onSubmit,
-        style: const TextStyle(fontSize: 17, color: Color(0xFF13262B)),
-        cursorColor: teal,
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(color: Color(0xFF8A989C), fontSize: 16),
-          filled: true,
-          fillColor: Colors.white,
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
-          suffixIcon: suffix,
-          border: b(Colors.transparent, 0),
-          enabledBorder: b(Colors.transparent, 0),
-          focusedBorder: b(const Color(0xFFF6C894), 2),
-        ),
-      ),
-    ]);
   }
 
   @override
   Widget build(BuildContext context) {
-    final top = MediaQuery.of(context).padding.top;
+    final p = Pal.of(context);
+    final mq = MediaQuery.of(context);
     return Scaffold(
-      backgroundColor: teal,
-      body: ListView(padding: EdgeInsets.zero, children: [
-        SizedBox(
-          height: 230 + top,
-          child: CustomPaint(painter: BigScene(dark: false, bottom: teal, vbH: 230)),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text('Свои в Египте', style: heading(30, weight: FontWeight.w800, color: Colors.white, height: 1.1)),
-            const SizedBox(height: 10),
-            const Text('Объявления, услуги, работа и новости для русскоязычных в Египте',
-                style: TextStyle(fontSize: 16, height: 1.45, color: Color(0xFFD6EEF0))),
-            const SizedBox(height: 26),
-            Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(color: const Color(0xFF0E7C86), borderRadius: BorderRadius.circular(14)),
-              child: Row(children: [
-                for (final r in [false, true])
-                  Expanded(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => setState(() {
-                        register = r;
-                        message = null;
-                      }),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 160),
-                        height: 42,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                            color: register == r ? Colors.white : Colors.transparent,
-                            borderRadius: BorderRadius.circular(10)),
-                        child: Text(r ? 'Регистрация' : 'Вход',
-                            style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: register == r ? teal : Colors.white)),
+      body: GlowBackground(
+        strong: true,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(20, 24 + mq.padding.top, 20, 24 + mq.padding.bottom),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                const Center(child: AppLogo(size: 64)),
+                const SizedBox(height: 18),
+                Text('Свои в Египте',
+                    textAlign: TextAlign.center, style: heading(30, weight: FontWeight.w800, color: p.text, height: 1.1)),
+                const SizedBox(height: 8),
+                Text('Объявления, услуги, работа и новости\nдля русскоязычных в Египте',
+                    textAlign: TextAlign.center, style: TextStyle(fontSize: 15, height: 1.45, color: p.muted)),
+                const SizedBox(height: 26),
+                Glass(
+                  radius: 26,
+                  opacity: p.dark ? .6 : .8,
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                  child: AutofillGroup(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      Segments<bool>(
+                        values: const [false, true],
+                        labels: const ['Вход', 'Регистрация'],
+                        selected: register,
+                        onChanged: (v) => setState(() {
+                          register = v;
+                          message = null;
+                        }),
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      if (register) ...[
+                        Field(label: 'Ваше имя', controller: name, hint: 'Например: Тимур', capitalization: TextCapitalization.words),
+                        const SizedBox(height: 12),
+                      ],
+                      Field(
+                          label: 'Электронная почта',
+                          controller: email,
+                          hint: 'name@mail.com',
+                          keyboard: TextInputType.emailAddress,
+                          autocorrect: false),
+                      const SizedBox(height: 12),
+                      Field(
+                        label: 'Пароль',
+                        controller: pass,
+                        hint: 'Не короче 6 символов',
+                        obscure: hide,
+                        autocorrect: false,
+                        onSubmitted: (_) => submit(),
+                        suffix: IconButton(
+                          onPressed: () => setState(() => hide = !hide),
+                          icon: Ico(hide ? 'eye' : 'eyeOff', size: 20, color: p.muted),
+                        ),
+                      ),
+                      if (message != null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                              color: good ? p.okbg : p.warnbg, borderRadius: BorderRadius.circular(12)),
+                          child: Text(message!,
+                              style: TextStyle(color: good ? p.ok : p.warn, fontSize: 14, height: 1.4)),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      PrimaryButton(register ? 'Зарегистрироваться' : 'Войти', busy: busy, onPressed: submit),
+                      if (!register)
+                        TextButton(
+                          onPressed: resetPassword,
+                          style: TextButton.styleFrom(foregroundColor: p.muted, minimumSize: const Size.fromHeight(42)),
+                          child: const Text('Забыли пароль?', style: TextStyle(fontSize: 14)),
+                        )
+                      else
+                        const SizedBox(height: 8),
+                    ]),
                   ),
+                ),
+                const SizedBox(height: 16),
+                OutlineBtn('Пропустить, просто посмотреть',
+                    height: 50, color: p.text, onPressed: () => AppScope.of(context).setGuest(true)),
               ]),
             ),
-            const SizedBox(height: 18),
-            if (register) ...[
-              authField('Ваше имя', name, hint: 'Например: Тимур', cap: TextCapitalization.words),
-              const SizedBox(height: 12),
-            ],
-            authField('Электронная почта', email, hint: 'name@mail.com', kb: TextInputType.emailAddress),
-            const SizedBox(height: 12),
-            authField('Пароль', pass,
-                hint: 'Не короче 6 символов',
-                obscure: hide,
-                onSubmit: (_) => submit(),
-                suffix: IconButton(
-                  onPressed: () => setState(() => hide = !hide),
-                  icon: Ico(hide ? 'eye' : 'eyeOff', size: 20, color: const Color(0xFF4E5E63)),
-                )),
-            if (message != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: tealDeep, borderRadius: BorderRadius.circular(12)),
-                child: Text(message!, style: const TextStyle(color: Color(0xFFFFE3B0), fontSize: 14, height: 1.4)),
-              ),
-            ],
-            const SizedBox(height: 18),
-            SizedBox(
-              height: 52,
-              child: FilledButton(
-                onPressed: busy ? null : submit,
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: teal,
-                  disabledBackgroundColor: const Color(0xFFD6EEF0),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                ),
-                child: busy
-                    ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: teal))
-                    : Text(register ? 'Зарегистрироваться' : 'Войти'),
-              ),
-            ),
-            if (!register)
-              TextButton(
-                onPressed: resetPassword,
-                style: TextButton.styleFrom(minimumSize: const Size.fromHeight(44)),
-                child: const Text('Забыли пароль?', style: TextStyle(color: Color(0xFFD6EEF0), fontSize: 14)),
-              )
-            else
-              const SizedBox(height: 14),
-            SizedBox(
-              height: 52,
-              child: OutlinedButton(
-                onPressed: () => AppScope.of(context).setGuest(true),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Color(0xFF8CC9CE)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                ),
-                child: const Text('Пропустить, просто посмотреть'),
-              ),
-            ),
-          ]),
+          ),
         ),
-      ]),
+      ),
     );
   }
 }
 
 // =====================================================================
-// Каркас с нижним меню
+// Каркас: разделы + боковая панель
 // =====================================================================
 
 class HomeShell extends StatefulWidget {
@@ -1539,19 +1551,38 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final p = Pal.of(context);
     return Scaffold(
+      backgroundColor: p.bg,
       drawer: AppDrawer(tab: tab, onSelect: (i) => setState(() => tab = i)),
       drawerEdgeDragWidth: 28,
-      body: IndexedStack(index: tab, children: pages),
+      drawerScrimColor: const Color(0x73000000),
+      body: GlowBackground(child: IndexedStack(index: tab, children: pages)),
       floatingActionButton: tab <= 2
-          ? FloatingActionButton.extended(
-              onPressed: openAdd,
-              backgroundColor: teal,
-              foregroundColor: Colors.white,
-              elevation: 6,
-              shape: const StadiumBorder(),
-              icon: const Ico('plus', size: 20, color: Colors.white, stroke: 2.4),
-              label: const Text('Разместить', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+          ? Container(
+              height: 52,
+              decoration: BoxDecoration(
+                gradient: p.primaryGradient,
+                borderRadius: BorderRadius.circular(26),
+                boxShadow: [BoxShadow(color: p.primary.withAlpha(110), blurRadius: 22, offset: const Offset(0, 8))],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(26),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: openAdd,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Ico('plus', size: 20, color: p.onPrimary, stroke: 2.4),
+                      const SizedBox(width: 8),
+                      Text('Разместить',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: p.onPrimary)),
+                    ]),
+                  ),
+                ),
+              ),
             )
           : null,
     );
@@ -1566,36 +1597,23 @@ class MenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
     final p = Pal.of(context);
-    return Semantics(
-      button: true,
-      label: 'Меню',
-      child: GestureDetector(
-        onTap: () => Scaffold.of(context).openDrawer(),
-        child: Stack(clipBehavior: Clip.none, children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(color: p.card, shape: BoxShape.circle, border: Border.all(color: p.line2)),
-            child: Center(child: Ico('menu', size: 20, color: p.text)),
+    return Stack(clipBehavior: Clip.none, children: [
+      IconBtn('menu', label: 'Меню', onTap: () => Scaffold.of(context).openDrawer()),
+      if (app.unreadTotal > 0)
+        Positioned(
+          right: 0,
+          top: 0,
+          child: Container(
+            width: 11,
+            height: 11,
+            decoration: BoxDecoration(color: const Color(0xFFF43F5E), shape: BoxShape.circle, border: Border.all(color: p.bg, width: 2)),
           ),
-          if (app.unreadTotal > 0)
-            Positioned(
-              right: -1,
-              top: -1,
-              child: Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                    color: const Color(0xFFD93D3D), shape: BoxShape.circle, border: Border.all(color: p.card, width: 2)),
-              ),
-            ),
-        ]),
-      ),
-    );
+        ),
+    ]);
   }
 }
 
-/// Боковая панель: разделы, личный кабинет, тема, вход/выход.
+/// Боковая панель: разделы, личный кабинет, оформление.
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key, required this.tab, required this.onSelect});
   final int tab;
@@ -1606,7 +1624,7 @@ class AppDrawer extends StatelessWidget {
     ['Услуги', 'tool'],
     ['Работа', 'bag'],
     ['Новости', 'news'],
-    ['Конвертер и справочник', 'coin'],
+    ['Полезное', 'coin'],
   ];
 
   @override
@@ -1614,8 +1632,7 @@ class AppDrawer extends StatelessWidget {
     final app = AppScope.of(context);
     final p = Pal.of(context);
     final logged = app.user != null;
-    final top = MediaQuery.of(context).padding.top;
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final mq = MediaQuery.of(context);
 
     void close() => Navigator.of(context).pop();
     void open(Widget page, String why) {
@@ -1627,23 +1644,22 @@ class AppDrawer extends StatelessWidget {
       }
     }
 
-    Widget item(String icon, String label,
-        {bool selected = false, VoidCallback? onTap, String? badge, bool danger = false}) {
-      final fg = danger ? p.bad : (selected ? p.accent : p.text);
+    Widget item(String icon, String label, {bool selected = false, VoidCallback? onTap, String? badge, bool danger = false}) {
+      final fg = danger ? p.bad : (selected ? p.text : p.text2);
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 1),
         child: Material(
-          color: selected ? p.avatar : Colors.transparent,
+          color: selected ? p.sel : Colors.transparent,
           borderRadius: BorderRadius.circular(14),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
             child: SizedBox(
-              height: 48,
+              height: 46,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Row(children: [
-                  Ico(icon, size: 21, color: danger ? p.bad : (selected ? p.accent : p.muted), stroke: 1.9),
+                  Ico(icon, size: 20, color: danger ? p.bad : (selected ? p.accent : p.muted), stroke: 1.9),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Text(label,
@@ -1656,9 +1672,9 @@ class AppDrawer extends StatelessWidget {
                       constraints: const BoxConstraints(minWidth: 22),
                       height: 22,
                       padding: const EdgeInsets.symmetric(horizontal: 7),
-                      decoration: BoxDecoration(color: p.soft, borderRadius: BorderRadius.circular(11)),
+                      decoration: BoxDecoration(color: p.primary, borderRadius: BorderRadius.circular(11)),
                       child: Center(
-                          child: Text(badge, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: p.muted))),
+                          child: Text(badge, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: p.onPrimary))),
                     ),
                 ]),
               ),
@@ -1669,107 +1685,251 @@ class AppDrawer extends StatelessWidget {
     }
 
     Widget label(String t) => Padding(
-          padding: const EdgeInsets.fromLTRB(26, 14, 16, 6),
-          child: Text(t, style: TextStyle(fontSize: 13, color: p.muted, fontWeight: FontWeight.w600)),
+          padding: const EdgeInsets.fromLTRB(24, 16, 16, 6),
+          child: Text(t.toUpperCase(),
+              style: TextStyle(fontSize: 11.5, color: p.muted, fontWeight: FontWeight.w700, letterSpacing: .8)),
         );
 
+    final mode = app.themeMode;
+
     return Drawer(
-      width: 304,
-      backgroundColor: p.bg,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.horizontal(right: Radius.circular(24))),
+      width: 312,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.horizontal(right: Radius.circular(28))),
       clipBehavior: Clip.antiAlias,
-      child: Column(children: [
-        // Шапка с пейзажем и пользователем
-        GestureDetector(
-          onTap: () => open(const ProfileScreen(), 'Войдите, чтобы открыть профиль.'),
-          child: Stack(children: [
-            Positioned.fill(child: CustomPaint(painter: SmallScene(dark: p.dark))),
+      child: Glass(
+        opacity: p.dark ? .8 : .9,
+        blur: 30,
+        border: false,
+        child: Container(
+          decoration: BoxDecoration(border: Border(right: BorderSide(color: p.glassLine))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            SizedBox(height: mq.padding.top + 14),
+            // Логотип
             Padding(
-              padding: EdgeInsets.fromLTRB(20, 20 + top, 16, 18),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(children: [
-                Avatar(name: logged ? app.userName : '?', url: app.profile?.avatarUrl, size: 52, bg: p.card),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(logged ? app.userName : 'Гость',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: heading(17, weight: FontWeight.w800, color: p.text)),
-                    const SizedBox(height: 2),
-                    Text(logged ? (app.profile?.city ?? 'Каир') : 'Нажмите, чтобы войти',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: p.brown)),
-                  ]),
-                ),
-                Ico('chevron', size: 18, color: p.text),
+                const AppLogo(size: 36),
+                const SizedBox(width: 10),
+                Text('Свои в Египте', style: heading(17, weight: FontWeight.w800, color: p.text)),
               ]),
             ),
-          ]),
-        ),
-        Expanded(
-          child: ListView(padding: const EdgeInsets.only(bottom: 8), children: [
-            label('Разделы'),
-            for (var i = 0; i < sections.length; i++)
-              item(sections[i][1], sections[i][0], selected: tab == i, onTap: () {
-                onSelect(i);
-                close();
-              }),
-            label('Личный кабинет'),
-            item('user', 'Мой профиль',
-                onTap: () => open(const ProfileScreen(), 'Войдите, чтобы открыть профиль.')),
-            item('doc', 'Мои объявления',
-                badge: logged && app.myPosts.isNotEmpty ? '${app.myPosts.length}' : null,
-                onTap: () => open(const MyAdsScreen(), 'Войдите, чтобы видеть свои объявления.')),
-            item('heart', 'Избранное',
-                badge: app.favorites.isNotEmpty ? '${app.favorites.length}' : null,
-                onTap: () => open(const FavoritesScreen(), 'Войдите, чтобы сохранять избранное.')),
-            item('chat', 'Сообщения',
-                badge: app.unreadTotal > 0 ? '${app.unreadTotal}' : null,
-                onTap: () => open(const ChatsScreen(), 'Войдите, чтобы переписываться.')),
-          ]),
-        ),
-        Divider(height: 1, color: p.line),
-        Padding(
-          padding: EdgeInsets.fromLTRB(0, 6, 0, 8 + MediaQuery.of(context).padding.bottom),
-          child: Column(children: [
+            const SizedBox(height: 14),
+            // Карточка пользователя
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Material(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(14),
+                color: p.dark ? const Color(0x0FFFFFFF) : const Color(0x08000000),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: p.glassLine)),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
-                  onTap: () => app.toggleTheme(Theme.of(context).brightness),
-                  child: SizedBox(
-                    height: 48,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      child: Row(children: [
-                        Ico(dark ? 'moon' : 'sun', size: 21, color: p.muted, stroke: 1.9),
-                        const SizedBox(width: 14),
-                        Expanded(
-                            child: Text('Тёмная тема',
-                                style: TextStyle(fontSize: 15, color: p.text, fontWeight: FontWeight.w500))),
-                        Toggle(value: dark),
-                      ]),
-                    ),
+                  onTap: () {
+                    if (logged) {
+                      open(const ProfileScreen(), '');
+                    } else {
+                      close();
+                      app.setGuest(false);
+                    }
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(children: [
+                      Avatar(name: logged ? app.userName : '?', url: app.profile?.avatarUrl, size: 44),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(logged ? app.userName : 'Гость',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: p.text)),
+                          const SizedBox(height: 2),
+                          Text(logged ? 'Мой профиль · ${app.profile?.city ?? 'Каир'}' : 'Войти или зарегистрироваться',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 13, color: logged ? p.muted : p.accent, fontWeight: FontWeight.w500)),
+                        ]),
+                      ),
+                      Ico('chevron', size: 16, color: p.muted),
+                    ]),
                   ),
                 ),
               ),
             ),
-            if (logged)
-              item('logout', 'Выйти', danger: true, onTap: () async {
-                close();
-                await app.signOut();
-              })
-            else
-              item('user', 'Войти или зарегистрироваться', onTap: () {
-                close();
-                app.setGuest(false);
-              }),
+            Expanded(
+              child: ListView(padding: EdgeInsets.zero, children: [
+                label('Разделы'),
+                for (var i = 0; i < sections.length; i++)
+                  item(sections[i][1], sections[i][0], selected: tab == i, onTap: () {
+                    onSelect(i);
+                    close();
+                  }),
+                label('Личный кабинет'),
+                item('doc', 'Мои объявления',
+                    badge: logged && app.myPosts.isNotEmpty ? '${app.myPosts.length}' : null,
+                    onTap: () => open(const MyAdsScreen(), 'Войдите, чтобы видеть свои объявления.')),
+                item('heart', 'Избранное',
+                    badge: app.favorites.isNotEmpty ? '${app.favorites.length}' : null,
+                    onTap: () => open(const FavoritesScreen(), 'Войдите, чтобы сохранять избранное.')),
+                item('chat', 'Сообщения',
+                    badge: app.unreadTotal > 0 ? '${app.unreadTotal}' : null,
+                    onTap: () => open(const ChatsScreen(), 'Войдите, чтобы переписываться.')),
+                label('Оформление'),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Segments<ThemeMode>(
+                    values: const [ThemeMode.dark, ThemeMode.light, ThemeMode.system],
+                    labels: const ['Тёмная', 'Светлая', 'Авто'],
+                    icons: const ['moon', 'sun', 'palette'],
+                    selected: mode,
+                    onChanged: app.setTheme,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    for (var i = 0; i < accentOptions.length; i++)
+                      Semantics(
+                        button: true,
+                        selected: app.accent == i,
+                        label: 'Цвет: ${accentOptions[i][0]}',
+                        child: GestureDetector(
+                          onTap: () => app.setAccent(i),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            width: 36,
+                            height: 36,
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: app.accent == i ? p.text : Colors.transparent, width: 2),
+                            ),
+                            child: Container(
+                              decoration: BoxDecoration(color: accentColor(i), shape: BoxShape.circle),
+                              child: app.accent == i
+                                  ? Center(
+                                      child: Ico('check',
+                                          size: 16,
+                                          stroke: 3,
+                                          color: accentColor(i).computeLuminance() > .5 ? Colors.black : Colors.white))
+                                  : null,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ]),
+                ),
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 4, 16, 8),
+                  child: Text('Цвет: ${accentOptions[app.accent][0]}', style: TextStyle(fontSize: 12.5, color: p.muted)),
+                ),
+              ]),
+            ),
+            Divider(height: 1, color: p.line),
+            Padding(
+              padding: EdgeInsets.fromLTRB(0, 6, 0, 8 + mq.padding.bottom),
+              child: logged
+                  ? item('logout', 'Выйти', danger: true, onTap: () async {
+                      close();
+                      await app.signOut();
+                    })
+                  : item('user', 'Войти или зарегистрироваться', onTap: () {
+                      close();
+                      app.setGuest(false);
+                    }),
+            ),
           ]),
         ),
-      ]),
+      ),
     );
+  }
+}
+
+/// Прозрачная (стеклянная) шапка разделов.
+class GlassBar extends StatelessWidget {
+  const GlassBar({super.key, required this.title, this.subtitle, this.trailing, this.bottom});
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final Widget? bottom;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+    final top = MediaQuery.of(context).padding.top;
+    return Glass(
+      opacity: p.dark ? .62 : .75,
+      border: false,
+      child: Container(
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.glassLine))),
+        padding: EdgeInsets.fromLTRB(16, top + 10, 16, bottom == null ? 12 : 10),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            const MenuButton(),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: heading(21, weight: FontWeight.w800, color: p.text)),
+                if (subtitle != null)
+                  Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: p.muted)),
+              ]),
+            ),
+            if (trailing != null) trailing!,
+          ]),
+          if (bottom != null) ...[const SizedBox(height: 12), bottom!],
+        ]),
+      ),
+    );
+  }
+}
+
+/// Список под стеклянной шапкой: контент прокручивается под ней.
+class UnderBar extends StatefulWidget {
+  const UnderBar({super.key, required this.bar, required this.slivers, this.onRefresh});
+  final Widget bar;
+  final List<Widget> slivers;
+  final RefreshCallback? onRefresh;
+
+  @override
+  State<UnderBar> createState() => _UnderBarState();
+}
+
+class _UnderBarState extends State<UnderBar> {
+  final key = GlobalKey();
+  double barH = 120;
+
+  void measure() {
+    final box = key.currentContext?.findRenderObject() as RenderBox?;
+    if (box != null && box.hasSize && (box.size.height - barH).abs() > .5) {
+      setState(() => barH = box.size.height);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) measure();
+    });
+    final p = Pal.of(context);
+    Widget scroll = CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+      slivers: [SliverToBoxAdapter(child: SizedBox(height: barH)), ...widget.slivers],
+    );
+    if (widget.onRefresh != null) {
+      scroll = RefreshIndicator(
+        color: p.primary,
+        backgroundColor: p.card,
+        edgeOffset: barH,
+        onRefresh: widget.onRefresh!,
+        child: scroll,
+      );
+    }
+    return Stack(children: [
+      Positioned.fill(child: scroll),
+      Positioned(top: 0, left: 0, right: 0, child: KeyedSubtree(key: key, child: widget.bar)),
+    ]);
   }
 }
 
@@ -1792,42 +1952,12 @@ class _ListTabState extends State<ListTab> {
 
   Future<void> pickCity() async {
     final app = AppScope.of(context);
-    final p = Pal.of(context);
-    final top = MediaQuery.of(context).padding.top;
-    final v = await showDialog<String>(
-      context: context,
-      barrierColor: withAlpha(0xFF13262B, .35),
-      useSafeArea: false,
-      builder: (ctx) => Align(
-        alignment: Alignment.topCenter,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(16, top + 64, 16, 0),
-          child: Material(
-            color: p.card,
-            elevation: 12,
-            shadowColor: withAlpha(0xFF000000, .3),
-            borderRadius: BorderRadius.circular(18),
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                  child: Text('Ваш город', style: TextStyle(fontSize: 13, color: p.muted)),
-                ),
-                for (final c in cities)
-                  OptionRow(label: c, selected: app.city == c, onTap: () => Navigator.pop(ctx, c)),
-              ]),
-            ),
-          ),
-        ),
-      ),
-    );
+    final v = await pickOption(context, 'Ваш город', cities, app.city);
     if (v != null) app.setCity(v);
   }
 
   Future<void> openFilters() async {
     final app = AppScope.of(context);
-    final p = Pal.of(context);
     final tmp = Filters()
       ..sort = filters.sort
       ..priceFrom = filters.priceFrom
@@ -1835,38 +1965,38 @@ class _ListTabState extends State<ListTab> {
       ..verifiedOnly = filters.verifiedOnly;
     final from = TextEditingController(text: filters.priceFrom?.toString() ?? '');
     final to = TextEditingController(text: filters.priceTo?.toString() ?? '');
-    final ok = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: p.card,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
+    final ok = await showGlassSheet<bool>(
+      context,
+      (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
+        final p = Pal.of(ctx);
         final n = app.filter(widget.section, cat, query, tmp).length;
         Widget sortChip(SortMode m, String label) {
           final on = tmp.sort == m;
           return GestureDetector(
             onTap: () => setSheet(() => tmp.sort = m),
-            child: Container(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
               height: 38,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: on ? teal : p.card,
+                color: on ? p.primary : p.soft,
                 borderRadius: BorderRadius.circular(19),
-                border: Border.all(color: on ? teal : p.line2),
+                border: Border.all(color: on ? p.primary : p.line),
               ),
               child: Text(label,
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: on ? Colors.white : p.text)),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: on ? p.onPrimary : p.text)),
             ),
           );
         }
 
         return Padding(
-          padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom),
+          padding: EdgeInsets.fromLTRB(
+              18, 0, 18, 18 + MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             const SheetHandle(),
             Row(children: [
-              Expanded(child: Text('Фильтры', style: heading(18, color: p.text))),
+              Expanded(child: Text('Фильтры', style: heading(20, weight: FontWeight.w800, color: p.text))),
               if (tmp.active)
                 TextButton(
                   onPressed: () => setSheet(() {
@@ -1880,15 +2010,15 @@ class _ListTabState extends State<ListTab> {
                   child: Text('Сбросить', style: TextStyle(color: p.accent, fontWeight: FontWeight.w600)),
                 ),
             ]),
-            const SizedBox(height: 10),
-            Text('Сортировка', style: TextStyle(fontSize: 13, color: p.text2, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 12),
+            Text('Сортировка', style: TextStyle(fontSize: 13, color: p.muted, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 8, children: [
               sortChip(SortMode.fresh, 'Сначала новые'),
               sortChip(SortMode.cheap, 'Дешевле'),
               sortChip(SortMode.expensive, 'Дороже'),
             ]),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             Row(children: [
               Expanded(
                 child: Field(
@@ -1914,13 +2044,16 @@ class _ListTabState extends State<ListTab> {
             Box(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               radius: 14,
+              color: p.soft,
               onTap: () => setSheet(() => tmp.verifiedOnly = !tmp.verifiedOnly),
               child: Row(children: [
+                Ico('shield', size: 20, color: p.ok),
+                const SizedBox(width: 10),
                 Expanded(child: Text('Только проверенные', style: TextStyle(fontSize: 15, color: p.text))),
                 Toggle(value: tmp.verifiedOnly),
               ]),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             PrimaryButton('Показать $n ${plural(n, 'объявление', 'объявления', 'объявлений')}',
                 onPressed: () => Navigator.pop(ctx, true)),
           ]),
@@ -1943,210 +2076,163 @@ class _ListTabState extends State<ListTab> {
     final p = Pal.of(context);
     final items = app.filter(widget.section, cat, query, filters);
     final catNames = <String?>[null, ...categories[widget.section]!];
-    final top = MediaQuery.of(context).padding.top;
     final title = sectionNames[widget.section]!;
 
-    final header = Stack(children: [
-      Positioned.fill(child: CustomPaint(painter: BigScene(dark: p.dark, bottom: p.bg))),
-      Padding(
-        padding: EdgeInsets.only(top: 16 + top, bottom: 10),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(children: [
-              const MenuButton(),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: heading(20, weight: FontWeight.w800, color: p.dark ? Colors.white : const Color(0xFF13262B))),
-              ),
-              const SizedBox(width: 8),
-              Semantics(
-                button: true,
-                label: 'Сменить тему',
-                child: GestureDetector(
-                  onTap: () => app.toggleTheme(Theme.of(context).brightness),
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                        color: p.card, shape: BoxShape.circle, border: Border.all(color: p.line2)),
-                    child: Center(child: Ico(p.dark ? 'sun' : 'moon', size: 18, color: p.accent)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Semantics(
-                button: true,
-                label: 'Выбрать город',
-                child: GestureDetector(
-                  onTap: pickCity,
-                  child: Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    decoration: BoxDecoration(
-                        color: p.card, borderRadius: BorderRadius.circular(20), border: Border.all(color: p.line2)),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Ico('pin', size: 16, color: p.accent),
-                      const SizedBox(width: 6),
-                      Text(app.city, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: p.text)),
-                    ]),
-                  ),
-                ),
-              ),
-            ]),
+    final cityChip = GestureDetector(
+      onTap: pickCity,
+      child: Container(
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(color: p.soft, borderRadius: BorderRadius.circular(20), border: Border.all(color: p.line)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Ico('pin', size: 15, color: p.accent),
+          const SizedBox(width: 5),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 104),
+            child: Text(app.city,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: p.text)),
           ),
-          const SizedBox(height: 88),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(children: [
-              Expanded(
-                child: Container(
-                  height: 44,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: p.card,
-                    borderRadius: BorderRadius.circular(22),
-                    boxShadow: [BoxShadow(color: withAlpha(0xFF6B3F1D, .12), blurRadius: 8, offset: const Offset(0, 2))],
-                  ),
-                  child: Row(children: [
-                    Ico('search', size: 18, color: p.muted),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        onChanged: (v) => setState(() => query = v),
-                        style: TextStyle(fontSize: 15, color: p.text),
-                        textInputAction: TextInputAction.search,
-                        decoration: InputDecoration.collapsed(
-                          hintText: 'Поиск: ${title.toLowerCase()}',
-                          hintStyle: TextStyle(fontSize: 15, color: p.hint),
-                        ),
-                      ),
-                    ),
-                  ]),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Semantics(
-                button: true,
-                label: 'Фильтры',
-                child: GestureDetector(
-                  onTap: openFilters,
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: filters.active ? teal : p.card,
-                      shape: BoxShape.circle,
-                      boxShadow: [BoxShadow(color: withAlpha(0xFF6B3F1D, .12), blurRadius: 8, offset: const Offset(0, 2))],
-                    ),
-                    child: Center(child: Ico('filter', size: 20, color: filters.active ? Colors.white : p.text)),
-                  ),
-                ),
-              ),
-            ]),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 92,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: catNames.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (_, i) {
-                final c = catNames[i];
-                final on = cat == c;
-                final name = c ?? 'Все';
-                final col = tint(catColors[i % catColors.length], p.dark);
-                return GestureDetector(
-                  onTap: () => setState(() => cat = c),
-                  child: SizedBox(
-                    width: 72,
-                    child: Column(children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 160),
-                        width: 54,
-                        height: 54,
-                        decoration: BoxDecoration(
-                          color: on ? teal : Color(col[0]),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(color: withAlpha(0xFF6B3F1D, .12), blurRadius: 6, offset: const Offset(0, 2))
-                          ],
-                        ),
-                        child: Center(
-                          child: Ico(catIcon[name] ?? 'tag',
-                              size: 26, stroke: 1.9, color: on ? Colors.white : Color(col[1])),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Builder(builder: (_) {
-                        final st = TextStyle(
-                            fontSize: 12, height: 1.2, color: p.text, fontWeight: on ? FontWeight.w700 : FontWeight.w500);
-                        // Одно слово — не переносим посреди слова, а слегка уменьшаем.
-                        if (!name.contains(' ')) {
-                          return FittedBox(
-                              fit: BoxFit.scaleDown, child: Text(name, maxLines: 1, style: st));
-                        }
-                        return Text(name,
-                            textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: st);
-                      }),
-                    ]),
-                  ),
-                );
-              },
-            ),
-          ),
+          const SizedBox(width: 2),
+          Ico('down', size: 14, color: p.muted),
         ]),
+      ),
+    );
+
+    final search = Row(children: [
+      Expanded(
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(color: p.input.withAlpha(p.dark ? 220 : 255), borderRadius: BorderRadius.circular(14), border: Border.all(color: p.line)),
+          child: Row(children: [
+            Ico('search', size: 18, color: p.muted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                onChanged: (v) => setState(() => query = v),
+                style: TextStyle(fontSize: 15, color: p.text),
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration.collapsed(
+                  hintText: 'Поиск: ${title.toLowerCase()}',
+                  hintStyle: TextStyle(fontSize: 15, color: p.hint),
+                ),
+              ),
+            ),
+          ]),
+        ),
+      ),
+      const SizedBox(width: 8),
+      GestureDetector(
+        onTap: openFilters,
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            gradient: filters.active ? p.primaryGradient : null,
+            color: filters.active ? null : p.input.withAlpha(p.dark ? 220 : 255),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: filters.active ? Colors.transparent : p.line),
+          ),
+          child: Center(child: Ico('filter', size: 20, color: filters.active ? p.onPrimary : p.text)),
+        ),
       ),
     ]);
 
-    return RefreshIndicator(
-      color: p.accent,
-      onRefresh: app.load,
-      child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(child: header),
-          if (app.loading && app.posts.isEmpty)
-            const SliverToBoxAdapter(
-              child: Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator())),
-            ),
-          if (app.error != null)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: p.warnbg, borderRadius: BorderRadius.circular(14)),
-                  child: Text(app.error!, style: TextStyle(color: p.warn, fontSize: 13, height: 1.45)),
-                ),
+    final chips = SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        clipBehavior: Clip.none,
+        itemCount: catNames.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final c = catNames[i];
+          final on = cat == c;
+          final name = c ?? 'Все';
+          final hue = Color(catHues[i % catHues.length]);
+          return GestureDetector(
+            onTap: () => setState(() => cat = c),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                gradient: on ? p.primaryGradient : null,
+                color: on ? null : p.soft,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: on ? Colors.transparent : p.line),
               ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Ico(catIcon[name] ?? 'tag', size: 16, stroke: 2, color: on ? p.onPrimary : hue),
+                const SizedBox(width: 6),
+                Text(name,
+                    style: TextStyle(
+                        fontSize: 13.5, fontWeight: FontWeight.w600, color: on ? p.onPrimary : p.text)),
+              ]),
             ),
-          if (items.isEmpty && !(app.loading && app.posts.isEmpty))
-            SliverToBoxAdapter(
-              child: EmptyState(
-                icon: catIcon[cat ?? 'Все'] ?? 'tag',
-                text: query.isNotEmpty || filters.active || cat != null || app.city != cities.first
-                    ? 'Ничего не нашлось.\nПопробуйте изменить поиск, город или фильтры.'
-                    : 'Здесь пока пусто.\nСтаньте первым — нажмите «Разместить».',
-              ),
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 2, 16, 110),
-              sliver: SliverList.separated(
-                itemCount: items.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
-                itemBuilder: (_, i) => PostCard(post: items[i]),
-              ),
-            ),
-        ],
+          );
+        },
       ),
     );
+
+    final bar = GlassBar(
+      title: title,
+      subtitle: 'Свои в Египте',
+      trailing: cityChip,
+      bottom: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [search, const SizedBox(height: 10), chips]),
+    );
+
+    final slivers = <Widget>[
+      if (app.loading && app.posts.isEmpty)
+        const SliverToBoxAdapter(
+          child: Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator())),
+        ),
+      if (app.error != null)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: p.warnbg, borderRadius: BorderRadius.circular(14)),
+              child: Text(app.error!, style: TextStyle(color: p.warn, fontSize: 13, height: 1.45)),
+            ),
+          ),
+        ),
+      if (items.isNotEmpty)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 2),
+            child: Text('${items.length} ${plural(items.length, 'объявление', 'объявления', 'объявлений')}'
+                '${app.city != cities.first ? ' · ${app.city}' : ''}',
+                style: TextStyle(fontSize: 13, color: p.muted, fontWeight: FontWeight.w500)),
+          ),
+        ),
+      if (items.isEmpty && !(app.loading && app.posts.isEmpty))
+        SliverToBoxAdapter(
+          child: EmptyState(
+            icon: catIcon[cat ?? 'Все'] ?? 'tag',
+            text: query.isNotEmpty || filters.active || cat != null || app.city != cities.first
+                ? 'Ничего не нашлось.\nПопробуйте изменить поиск, город или фильтры.'
+                : 'Здесь пока пусто.\nСтаньте первым — нажмите «Разместить».',
+          ),
+        )
+      else
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 120),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 230,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 12,
+              childAspectRatio: .62,
+            ),
+            delegate: SliverChildBuilderDelegate((_, i) => PostTile(post: items[i]), childCount: items.length),
+          ),
+        ),
+    ];
+
+    return UnderBar(bar: bar, slivers: slivers, onRefresh: app.load);
   }
 }
 
@@ -2162,8 +2248,39 @@ Future<void> favOrLogin(BuildContext context, String id) async {
   }
 }
 
+/// Картинка объявления: фото или градиент со значком.
+class PostImage extends StatelessWidget {
+  const PostImage({super.key, required this.post, this.iconSize = 40, this.index = 0, this.fit = BoxFit.cover});
+  final Post post;
+  final double iconSize;
+  final int index;
+  final BoxFit fit;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+    final hue = Color(sectionHue[post.section]!);
+    final fallback = Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.alphaBlend(hue.withAlpha(p.dark ? 70 : 50), p.card),
+            Color.alphaBlend(hue.withAlpha(p.dark ? 22 : 18), p.card),
+          ],
+        ),
+      ),
+      child: Center(child: Ico(iconForPost(post), size: iconSize, color: Color.lerp(hue, p.text, p.dark ? .15 : .1), stroke: 1.6)),
+    );
+    if (post.photos.length <= index) return fallback;
+    return Image.network(post.photos[index], fit: fit, width: double.infinity, height: double.infinity,
+        errorBuilder: (_, __, ___) => fallback);
+  }
+}
+
 class PostThumb extends StatelessWidget {
-  const PostThumb({super.key, required this.post, this.size = 76, this.height, this.radius = 12, this.iconSize = 34});
+  const PostThumb({super.key, required this.post, this.size = 76, this.height, this.radius = 14, this.iconSize = 30});
   final Post post;
   final double size;
   final double? height;
@@ -2171,38 +2288,105 @@ class PostThumb extends StatelessWidget {
   final double iconSize;
 
   @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: SizedBox(width: size, height: height ?? size, child: PostImage(post: post, iconSize: iconSize)),
+      );
+}
+
+/// Плитка в ленте: фото + цена + заголовок.
+class PostTile extends StatelessWidget {
+  const PostTile({super.key, required this.post});
+  final Post post;
+
+  @override
   Widget build(BuildContext context) {
+    final app = AppScope.of(context);
     final p = Pal.of(context);
-    final t = tint(sectionTint[post.section]!, p.dark);
-    final fallback = Container(
-      color: Color(t[0]),
-      child: Center(child: Ico(iconForPost(post), size: iconSize, color: Color(t[1]), stroke: 1.8)),
-    );
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: SizedBox(
-        width: size,
-        height: height ?? size,
-        child: post.photos.isEmpty
-            ? fallback
-            : Image.network(post.photos.first, fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback),
-      ),
+    final fav = app.favorites.contains(post.id);
+    final rating = app.ratings[post.userId];
+    return GestureDetector(
+      onTap: () => push(context, PostDetailScreen(post: post)),
+      behavior: HitTestBehavior.opaque,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        AspectRatio(
+          aspectRatio: 1,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Stack(children: [
+              Positioned.fill(child: PostImage(post: post)),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: IconBtn('heart',
+                    glass: true,
+                    box: 34,
+                    size: 18,
+                    label: 'В избранное',
+                    onTap: () => favOrLogin(context, post.id),
+                    color: fav ? const Color(0xFFF43F5E) : Colors.white,
+                    fill: fav ? const Color(0xFFF43F5E) : null),
+              ),
+              if (post.photos.length > 1)
+                Positioned(
+                  left: 8,
+                  top: 8,
+                  child: Glass(
+                    radius: 10,
+                    opacity: .5,
+                    blur: 12,
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    color: const Color(0x66000000),
+                    border: false,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Ico('image', size: 12, color: Colors.white),
+                      const SizedBox(width: 4),
+                      Text('${post.photos.length}',
+                          style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w600)),
+                    ]),
+                  ),
+                ),
+              if (post.verified)
+                Positioned(
+                  left: 8,
+                  bottom: 8,
+                  child: Glass(
+                    radius: 10,
+                    blur: 12,
+                    border: false,
+                    color: const Color(0x8C0B2A1A),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: const Text('✓ Проверен',
+                        style: TextStyle(color: Color(0xFF86EFAC), fontSize: 11.5, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(priceMain(post.priceEgp),
+            maxLines: 1, overflow: TextOverflow.ellipsis, style: heading(16, weight: FontWeight.w800, color: p.text)),
+        const SizedBox(height: 2),
+        Text(post.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 13.5, color: p.text2, height: 1.3, fontWeight: FontWeight.w500)),
+        const Spacer(),
+        Row(children: [
+          Expanded(
+            child: Text('${post.city} · ${dateText(post.date)}',
+                maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: p.muted)),
+          ),
+          if (rating != null)
+            Text('★ ${rating.toStringAsFixed(1)}',
+                style: TextStyle(fontSize: 12, color: p.warn, fontWeight: FontWeight.w700)),
+        ]),
+      ]),
     );
   }
 }
 
-class HeartIcon extends StatelessWidget {
-  const HeartIcon({super.key, required this.on});
-  final bool on;
-
-  @override
-  Widget build(BuildContext context) => Ico('heart',
-      size: 22,
-      stroke: 2,
-      color: on ? const Color(0xFFD93D3D) : Pal.of(context).muted,
-      fill: on ? const Color(0xFFD93D3D) : null);
-}
-
+/// Карточка-строка (избранное, объявления продавца).
 class PostCard extends StatelessWidget {
   const PostCard({super.key, required this.post});
   final Post post;
@@ -2216,37 +2400,34 @@ class PostCard extends StatelessWidget {
     final rub = priceRub(post.priceEgp);
 
     return Box(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       onTap: () => push(context, PostDetailScreen(post: post)),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        PostThumb(post: post),
+        PostThumb(post: post, size: 84),
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(priceMain(post.priceEgp), style: heading(16, weight: FontWeight.w800, color: p.text)),
+            if (rub.isNotEmpty) Text(rub, style: TextStyle(fontSize: 12, color: p.muted)),
+            const SizedBox(height: 3),
             Text(post.title,
-                maxLines: 2, overflow: TextOverflow.ellipsis, style: heading(16, color: p.text)),
-            const SizedBox(height: 4),
-            Text(priceMain(post.priceEgp),
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: p.accent)),
-            if (rub.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(rub, style: TextStyle(fontSize: 13, color: p.muted)),
-            ],
+                maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: p.text2, height: 1.3)),
             const SizedBox(height: 4),
             Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              Text('${post.city} · ${post.category}', style: TextStyle(fontSize: 13, color: p.muted)),
+              Text('${post.city} · ${post.category}', style: TextStyle(fontSize: 12, color: p.muted)),
               if (post.verified) const VerifiedPill(),
               if (rating != null)
                 Text('★ ${rating.toStringAsFixed(1)}',
-                    style: TextStyle(fontSize: 13, color: p.warn, fontWeight: FontWeight.w600)),
+                    style: TextStyle(fontSize: 12, color: p.warn, fontWeight: FontWeight.w700)),
             ]),
           ]),
         ),
         IconBtn('heart',
+            plain: true,
             label: 'В избранное',
             onTap: () => favOrLogin(context, post.id),
-            color: fav ? const Color(0xFFD93D3D) : p.muted,
-            fill: fav ? const Color(0xFFD93D3D) : null),
+            color: fav ? const Color(0xFFF43F5E) : p.muted,
+            fill: fav ? const Color(0xFFF43F5E) : null),
       ]),
     );
   }
@@ -2301,229 +2482,249 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
+  void openChat() {
+    final app = AppScope.of(context);
+    if (app.user == null) {
+      askLogin(context, 'Войдите, чтобы переписываться с продавцами.');
+      return;
+    }
+    push(
+        context,
+        ChatScreen(
+            otherId: post.userId,
+            otherName: post.author,
+            otherAvatar: post.authorAvatar,
+            postId: post.id,
+            postTitle: '${post.title} · ${priceMain(post.priceEgp)}'));
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
     final p = Pal.of(context);
+    final mq = MediaQuery.of(context);
     final fav = app.favorites.contains(post.id);
-    final t = tint(sectionTint[post.section]!, p.dark);
     final rating = app.ratings[post.userId];
     final mine = app.user?.id == post.userId;
-    final since = post.authorSince != null ? ' · на сайте с ${post.authorSince!.year}' : '';
+    final since = post.authorSince != null ? ' · с ${post.authorSince!.year}' : '';
     final rub = priceRub(post.priceEgp);
+    final count = math.max(1, post.photos.length);
+    final galleryH = math.min(mq.size.width, 460.0) * .92 + mq.padding.top;
 
-    Widget gallery;
-    if (post.photos.isEmpty) {
-      gallery = Container(
-        height: 210,
-        decoration: BoxDecoration(color: Color(t[0]), borderRadius: BorderRadius.circular(18)),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(children: [
-          Positioned.fill(child: CustomPaint(painter: BannerDeco(ink: t[1], big: true))),
-          Center(
+    final gallery = SizedBox(
+      height: galleryH,
+      child: Stack(children: [
+        PageView.builder(
+          itemCount: count,
+          onPageChanged: (i) => setState(() => page = i),
+          itemBuilder: (_, i) => GestureDetector(
+            onTap: post.photos.isEmpty ? null : () => push(context, PhotoViewer(photos: post.photos, start: i)),
+            child: PostImage(post: post, index: i, iconSize: 72),
+          ),
+        ),
+        // затемнение сверху, чтобы кнопки читались
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 110 + mq.padding.top,
+          child: IgnorePointer(
             child: Container(
-              width: 96,
-              height: 96,
-              decoration: BoxDecoration(
-                color: p.card,
-                shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: withAlpha(0xFF000000, .10), blurRadius: 16, offset: const Offset(0, 6))],
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0x66000000), Color(0x00000000)],
+                ),
               ),
-              child: Center(child: Ico(iconForPost(post), size: 52, color: Color(t[1]), stroke: 1.5)),
             ),
           ),
-        ]),
-      );
-    } else {
-      gallery = ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: SizedBox(
-          height: 260,
-          child: Stack(children: [
-            PageView.builder(
-              itemCount: post.photos.length,
-              onPageChanged: (i) => setState(() => page = i),
-              itemBuilder: (_, i) => GestureDetector(
-                onTap: () => push(context, PhotoViewer(photos: post.photos, start: i)),
-                child: Container(
-                  color: Color(t[0]),
-                  child: Image.network(post.photos[i],
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      errorBuilder: (_, __, ___) =>
-                          Center(child: Ico('image', size: 40, color: Color(t[1]), stroke: 1.6))),
-                ),
-              ),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 12,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: p.card, borderRadius: BorderRadius.circular(10)),
-                  child: Text('Фото ${page + 1} из ${post.photos.length}',
-                      style: TextStyle(fontSize: 13, color: p.text2)),
-                ),
-              ),
-            ),
-          ]),
         ),
-      );
-    }
+        if (count > 1)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 34,
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              for (var i = 0; i < count; i++)
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: i == page ? 18 : 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                      color: i == page ? Colors.white : const Color(0x99FFFFFF), borderRadius: BorderRadius.circular(3)),
+                ),
+            ]),
+          ),
+      ]),
+    );
 
-    Widget contactBtn(String label, Color bg, Color fg, VoidCallback onTap, {bool outline = false}) => SizedBox(
-          height: 48,
-          child: FilledButton(
-            onPressed: onTap,
-            style: FilledButton.styleFrom(
-              backgroundColor: bg,
-              foregroundColor: fg,
-              padding: EdgeInsets.zero,
-              side: outline ? BorderSide(color: p.line2) : null,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+    Widget chip(String icon, String text) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(color: p.soft, borderRadius: BorderRadius.circular(12), border: Border.all(color: p.line)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Ico(icon, size: 14, color: p.muted),
+            const SizedBox(width: 6),
+            Text(text, style: TextStyle(fontSize: 13, color: p.text2, fontWeight: FontWeight.w500)),
+          ]),
+        );
+
+    Widget round(String label, Color bg, Color fg, String icon, VoidCallback onTap) => Semantics(
+          button: true,
+          label: label,
+          child: GestureDetector(
+            onTap: onTap,
+            child: Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(16)),
+              child: Center(child: icon.isEmpty ? Text(label[0], style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 18)) : Ico(icon, size: 22, color: fg)),
             ),
-            child: Text(label),
           ),
         );
 
+    final bottomBar = Glass(
+      radius: 24,
+      opacity: p.dark ? .7 : .85,
+      padding: const EdgeInsets.all(10),
+      child: mine
+          ? PrimaryButton('Изменить объявление', icon: 'edit', onPressed: () async {
+              final changed = await push<bool>(context, AddPostScreen(section: post.section, edit: post));
+              if (changed == true && context.mounted) Navigator.pop(context);
+            })
+          : Row(children: [
+              round('WhatsApp', const Color(0xFF22C55E), Colors.white, 'phone', () => contact('wa')),
+              const SizedBox(width: 8),
+              round('Telegram', const Color(0xFF229ED9), Colors.white, 'send', () => contact('tg')),
+              const SizedBox(width: 8),
+              round('Позвонить', p.soft, p.text, 'phoneCall', () => contact('call')),
+              const SizedBox(width: 8),
+              Expanded(child: PrimaryButton('Написать', icon: 'chat', onPressed: openChat)),
+            ]),
+    );
+
     return Scaffold(
-      body: Column(children: [
-        SubHeader(
-          title: sectionNames[post.section]!,
-          center: true,
-          trailing: IconBtn('heart',
-              label: 'В избранное',
-              onTap: () => favOrLogin(context, post.id),
-              color: fav ? const Color(0xFFD93D3D) : p.text,
-              fill: fav ? const Color(0xFFD93D3D) : null),
-        ),
-        Expanded(
-          child: ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + MediaQuery.of(context).padding.bottom), children: [
-            gallery,
-            const SizedBox(height: 14),
-            Text(post.title, style: heading(22, weight: FontWeight.w800, color: p.text, height: 1.25)),
-            const SizedBox(height: 8),
-            Wrap(crossAxisAlignment: WrapCrossAlignment.end, spacing: 8, children: [
-              Text(priceMain(post.priceEgp),
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: p.accent)),
-              if (rub.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 3),
-                  child: Text(rub, style: TextStyle(fontSize: 14, color: p.muted)),
+      backgroundColor: p.bg,
+      body: Stack(children: [
+        CustomScrollView(slivers: [
+          SliverToBoxAdapter(child: gallery),
+          SliverToBoxAdapter(
+            child: Transform.translate(
+              offset: const Offset(0, -24),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: p.bg,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
                 ),
-            ]),
-            const SizedBox(height: 10),
-            Wrap(spacing: 8, runSpacing: 8, children: [
-              _Chip(post.city),
-              _Chip(post.category),
-              _Chip(dateText(post.date)),
-              if (post.verified) const VerifiedPill(big: true),
-            ]),
-            const SizedBox(height: 12),
-            Text(post.description.isEmpty ? 'Без описания' : post.description,
-                style: TextStyle(fontSize: 16, height: 1.6, color: p.body)),
-            const SizedBox(height: 14),
-            Box(
-              padding: const EdgeInsets.all(12),
-              onTap: () => push(context, SellerScreen(userId: post.userId, name: post.author, fromPost: post)),
-              child: Row(children: [
-                Avatar(name: post.author, url: post.authorAvatar, size: 44),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(post.author, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: p.text)),
-                    const SizedBox(height: 2),
-                    Text(
-                        rating != null
-                            ? 'Рейтинг ${rating.toStringAsFixed(1)} ★$since'
-                            : 'Новый пользователь$since',
-                        style: TextStyle(fontSize: 13, color: p.muted)),
+                padding: EdgeInsets.fromLTRB(18, 20, 18, 110 + mq.padding.bottom),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Flexible(child: Text(priceMain(post.priceEgp), style: heading(26, weight: FontWeight.w800, color: p.text))),
+                    if (rub.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(rub, style: TextStyle(fontSize: 14, color: p.muted)),
+                      ),
+                    ],
                   ]),
-                ),
-                Ico('chevron', size: 20, color: p.muted),
-              ]),
-            ),
-            const SizedBox(height: 12),
-            if (mine) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: p.sel, borderRadius: BorderRadius.circular(14)),
-                child: Text('Это ваше объявление. Контакт для связи: ${post.contact}',
-                    style: TextStyle(fontSize: 14, color: p.accent, fontWeight: FontWeight.w600, height: 1.4)),
+                  const SizedBox(height: 6),
+                  Text(post.title, style: heading(19, weight: FontWeight.w700, color: p.text2, height: 1.3)),
+                  const SizedBox(height: 12),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    chip('pin', post.city),
+                    chip(catIcon[post.category] ?? 'tag', post.category),
+                    chip('calendar', dateText(post.date)),
+                    if (post.verified) const VerifiedPill(big: true),
+                  ]),
+                  const SizedBox(height: 18),
+                  Text('Описание', style: heading(16, weight: FontWeight.w800, color: p.text)),
+                  const SizedBox(height: 6),
+                  Text(post.description.isEmpty ? 'Без описания' : post.description,
+                      style: TextStyle(fontSize: 15.5, height: 1.6, color: p.body)),
+                  const SizedBox(height: 18),
+                  Box(
+                    padding: const EdgeInsets.all(12),
+                    onTap: () => push(context, SellerScreen(userId: post.userId, name: post.author, fromPost: post)),
+                    child: Row(children: [
+                      Avatar(name: post.author, url: post.authorAvatar, size: 46),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(children: [
+                            Flexible(
+                              child: Text(post.author,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: p.text)),
+                            ),
+                            if (post.verified) ...[const SizedBox(width: 6), Ico('shield', size: 15, color: p.ok)],
+                          ]),
+                          const SizedBox(height: 2),
+                          Text(rating != null ? '★ ${rating.toStringAsFixed(1)}$since' : 'Новый продавец$since',
+                              style: TextStyle(fontSize: 13, color: p.muted)),
+                        ]),
+                      ),
+                      Text('Профиль', style: TextStyle(fontSize: 13, color: p.accent, fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 2),
+                      Ico('chevron', size: 16, color: p.accent),
+                    ]),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: p.warnbg, borderRadius: BorderRadius.circular(14)),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Ico('alert', size: 18, color: p.warn),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text('Не переводите предоплату до встречи. Выбирайте продавцов с отметкой «Проверен».',
+                            style: TextStyle(fontSize: 13, color: p.warn, height: 1.45)),
+                      ),
+                    ]),
+                  ),
+                  if (mine) ...[
+                    const SizedBox(height: 12),
+                    Text('Это ваше объявление. Контакт: ${post.contact}',
+                        style: TextStyle(fontSize: 13, color: p.muted)),
+                  ] else
+                    Center(
+                      child: TextButton(
+                        onPressed: () {
+                          if (app.user == null) {
+                            askLogin(context, 'Войдите, чтобы отправить жалобу модератору.');
+                            return;
+                          }
+                          app.report(post.id);
+                          toast(context, 'Спасибо! Модератор проверит объявление.');
+                        },
+                        style: TextButton.styleFrom(foregroundColor: p.bad, minimumSize: const Size(0, 44)),
+                        child: const Text('Пожаловаться на объявление', style: TextStyle(fontSize: 14)),
+                      ),
+                    ),
+                ]),
               ),
-              const SizedBox(height: 10),
-              PrimaryButton('Изменить объявление', icon: 'edit', onPressed: () async {
-                final changed = await push<bool>(context, AddPostScreen(section: post.section, edit: post));
-                if (changed == true && context.mounted) Navigator.pop(context);
-              }),
-            ] else ...[
-              Row(children: [
-                Expanded(child: contactBtn('WhatsApp', const Color(0xFF1B8F4A), Colors.white, () => contact('wa'))),
-                const SizedBox(width: 8),
-                Expanded(child: contactBtn('Telegram', const Color(0xFF1F6FB2), Colors.white, () => contact('tg'))),
-                const SizedBox(width: 8),
-                Expanded(child: contactBtn('Позвонить', p.card, p.text, () => contact('call'), outline: true)),
-              ]),
-              const SizedBox(height: 8),
-              OutlineBtn('Написать в чат', icon: 'chat', height: 48, onPressed: () {
-                if (app.user == null) {
-                  askLogin(context, 'Войдите, чтобы переписываться с продавцами.');
-                  return;
-                }
-                push(
-                    context,
-                    ChatScreen(
-                        otherId: post.userId,
-                        otherName: post.author,
-                        otherAvatar: post.authorAvatar,
-                        postId: post.id,
-                        postTitle: '${post.title} · ${priceMain(post.priceEgp)}'));
-              }),
-            ],
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: p.warnbg, borderRadius: BorderRadius.circular(14)),
-              child: Text('Не переводите предоплату до встречи. Выбирайте продавцов с отметкой «Проверен».',
-                  style: TextStyle(fontSize: 13, color: p.warn, height: 1.45)),
             ),
-            if (!mine)
-              Center(
-                child: TextButton(
-                  onPressed: () {
-                    if (app.user == null) {
-                      askLogin(context, 'Войдите, чтобы отправить жалобу модератору.');
-                      return;
-                    }
-                    app.report(post.id);
-                    toast(context, 'Спасибо! Модератор проверит объявление.');
-                  },
-                  style: TextButton.styleFrom(foregroundColor: p.bad, minimumSize: const Size(0, 44)),
-                  child: const Text('Пожаловаться на объявление', style: TextStyle(fontSize: 14)),
-                ),
-              ),
+          ),
+        ]),
+        Positioned(
+          top: mq.padding.top + 10,
+          left: 14,
+          right: 14,
+          child: Row(children: [
+            IconBtn('back', glass: true, color: Colors.white, label: 'Назад', onTap: () => Navigator.maybePop(context)),
+            const Spacer(),
+            IconBtn('heart',
+                glass: true,
+                label: 'В избранное',
+                onTap: () => favOrLogin(context, post.id),
+                color: fav ? const Color(0xFFF43F5E) : Colors.white,
+                fill: fav ? const Color(0xFFF43F5E) : null),
           ]),
         ),
+        Positioned(left: 12, right: 12, bottom: 12 + mq.padding.bottom, child: bottomBar),
       ]),
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  const _Chip(this.text);
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = Pal.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-          color: p.card, borderRadius: BorderRadius.circular(14), border: Border.all(color: p.line)),
-      child: Text(text, style: TextStyle(fontSize: 13, color: p.text, height: 1.2)),
     );
   }
 }
@@ -2547,15 +2748,14 @@ class PhotoViewer extends StatelessWidget {
           ),
         ),
         Positioned(
-          top: MediaQuery.of(context).padding.top + 8,
-          left: 8,
-          child: IconBtn('close', label: 'Закрыть', color: Colors.white, onTap: () => Navigator.pop(context)),
+          top: MediaQuery.of(context).padding.top + 10,
+          left: 14,
+          child: IconBtn('close', glass: true, label: 'Закрыть', color: Colors.white, onTap: () => Navigator.pop(context)),
         ),
       ]),
     );
   }
 }
-
 // =====================================================================
 // Размещение и редактирование
 // =====================================================================
@@ -2659,22 +2859,8 @@ class _AddPostScreenState extends State<AddPostScreen> {
   Future<void> remove() async {
     final app = AppScope.of(context);
     final p = Pal.of(context);
-    final yes = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: p.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Удалить объявление?', style: heading(19, color: p.text)),
-        content: Text('Его нельзя будет восстановить.', style: TextStyle(color: p.text2, fontSize: 15)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Отмена', style: TextStyle(color: p.muted))),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text('Удалить', style: TextStyle(color: p.bad, fontWeight: FontWeight.w700))),
-        ],
-      ),
-    );
-    if (yes != true || !mounted) return;
+    final yes = await confirmDialog(context, 'Удалить объявление?', 'Его нельзя будет восстановить.', 'Удалить');
+    if (!yes || !mounted) return;
     try {
       await app.deletePost(widget.edit!.id);
       if (!mounted) return;
@@ -2730,7 +2916,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
     final addTile = GestureDetector(
       onTap: uploading ? null : addPhotos,
       child: CustomPaint(
-        painter: DashedBorder(const Color(0xFFA9B8BC)),
+        painter: DashedBorder(p.line2),
         child: Container(
           width: photos.isEmpty ? double.infinity : 88,
           height: photos.isEmpty ? 96 : 88,
@@ -2848,106 +3034,78 @@ class _AddPostScreenState extends State<AddPostScreen> {
   }
 }
 
+
 // =====================================================================
 // Новости
 // =====================================================================
 
-class TabHeader extends StatelessWidget {
-  const TabHeader({super.key, required this.child});
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = Pal.of(context);
-    final top = MediaQuery.of(context).padding.top;
-    return Stack(children: [
-      Positioned.fill(child: CustomPaint(painter: SmallScene(dark: p.dark))),
-      Padding(padding: EdgeInsets.fromLTRB(16, 16 + top, 16, 16), child: child),
-    ]);
-  }
-}
-
 class NewsTab extends StatelessWidget {
   const NewsTab({super.key});
 
-  static const tagColors = {
-    'Визы': [0xFFE4E7FB, 0xFF3A44A8],
-    'Курс': [0xFFDDF0F2, 0xFF0B6770],
-    'События': [0xFFFCE9D9, 0xFF9A4A0C],
-    'Важно': [0xFFFBE1DD, 0xFFA33A2B],
+  static const tagHue = {
+    'Визы': 0xFF6366F1,
+    'Курс': 0xFF14B8A6,
+    'События': 0xFFF59E0B,
+    'Важно': 0xFFF43F5E,
   };
   static const tagIcons = {'Визы': 'doc', 'Курс': 'coin', 'События': 'people', 'Важно': 'alert'};
 
   @override
   Widget build(BuildContext context) {
     final p = Pal.of(context);
-    return Column(children: [
-      TabHeader(
-        child: Row(children: [
-          const MenuButton(),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Новости', style: heading(22, weight: FontWeight.w800, color: p.text)),
-              Text('Важное для русскоязычных в Египте',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: p.brown)),
-            ]),
-          ),
-        ]),
-      ),
-      Expanded(
-        child: ListView.separated(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          itemCount: demoNews.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (_, i) {
-            final n = demoNews[i];
-            final c = tint(tagColors[n.tag] ?? catColors[0], p.dark);
-            return Container(
-              decoration: BoxDecoration(
-                  color: p.card, borderRadius: BorderRadius.circular(16), border: Border.all(color: p.line)),
-              clipBehavior: Clip.antiAlias,
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Container(
-                  height: 96,
-                  color: Color(c[0]),
-                  child: Stack(children: [
-                    Positioned.fill(child: CustomPaint(painter: BannerDeco(ink: c[1], big: false))),
-                    Center(
-                      child: Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(color: p.card, shape: BoxShape.circle),
-                        child: Center(child: Ico(tagIcons[n.tag] ?? 'news', size: 28, stroke: 1.9, color: Color(c[1]))),
+    return UnderBar(
+      bar: const GlassBar(title: 'Новости', subtitle: 'Важное для русскоязычных в Египте'),
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
+          sliver: SliverList.separated(
+            itemCount: demoNews.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (_, i) {
+              final n = demoNews[i];
+              final hue = Color(tagHue[n.tag] ?? 0xFF14B8A6);
+              return Box(
+                padding: const EdgeInsets.all(14),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [hue.withAlpha(p.dark ? 90 : 60), hue.withAlpha(p.dark ? 30 : 22)],
                       ),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                  ]),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [
-                      Pill(n.tag, bg: Color(c[0]), fg: Color(c[1])),
-                      const Spacer(),
-                      Text(n.date, style: TextStyle(fontSize: 13, color: p.muted)),
+                    child: Center(
+                        child: Ico(tagIcons[n.tag] ?? 'news', size: 22, stroke: 1.9, color: Color.lerp(hue, p.text, .1))),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        Text(n.tag, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color.lerp(hue, p.text, p.dark ? .25 : 0))),
+                        Text('  ·  ${n.date}', style: TextStyle(fontSize: 12.5, color: p.muted)),
+                      ]),
+                      const SizedBox(height: 4),
+                      Text(n.title, style: heading(16, weight: FontWeight.w800, color: p.text)),
+                      const SizedBox(height: 4),
+                      Text(n.summary, style: TextStyle(fontSize: 14, color: p.text2, height: 1.45)),
                     ]),
-                    const SizedBox(height: 8),
-                    Text(n.title, style: heading(17, color: p.text)),
-                    const SizedBox(height: 6),
-                    Text(n.summary, style: TextStyle(fontSize: 15, color: p.text2, height: 1.5)),
-                  ]),
-                ),
-              ]),
-            );
-          },
+                  ),
+                ]),
+              );
+            },
+          ),
         ),
-      ),
-    ]);
+      ],
+    );
   }
 }
 
 // =====================================================================
-// Ещё
+// Полезное: конвертер и справочник
 // =====================================================================
 
 class MoreTab extends StatelessWidget {
@@ -2955,134 +3113,56 @@ class MoreTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final app = AppScope.of(context);
     final p = Pal.of(context);
-    final logged = app.user != null;
-    final prof = app.profile;
-    final active = app.myPosts.where((x) => x.status == 'active').length;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-
-    void needLogin(String why, VoidCallback go) {
-      if (logged) {
-        go();
-      } else {
-        askLogin(context, why);
-      }
-    }
-
-    return Column(children: [
-      GestureDetector(
-        onTap: () => needLogin('Войдите, чтобы открыть профиль и размещать объявления.',
-            () => push(context, const ProfileScreen())),
-        child: TabHeader(
-          child: Row(children: [
-            const MenuButton(),
-            const SizedBox(width: 12),
-            Avatar(name: logged ? app.userName : '?', url: prof?.avatarUrl, size: 48, bg: p.card),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(logged ? app.userName : 'Гость',
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17, color: p.text)),
-                Text(
-                    logged
-                        ? '${prof?.city ?? 'Каир'} · Мои объявления: $active'
-                        : 'Войдите, чтобы размещать объявления',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: p.brown)),
-              ]),
-            ),
-            Container(
-              height: 34,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(color: p.card, borderRadius: BorderRadius.circular(17)),
-              child: Center(
-                child: Text(logged ? 'Профиль' : 'Войти',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: p.accent)),
-              ),
-            ),
-          ]),
-        ),
-      ),
-      Expanded(
-        child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 24), children: [
-          const ConverterCard(),
-          const SizedBox(height: 12),
-          MenuGroup(rows: [
-            MenuRow(
-                icon: 'user',
-                label: 'Мой профиль',
-                onTap: () => needLogin('Войдите, чтобы открыть профиль.', () => push(context, const ProfileScreen()))),
-            MenuRow(
-                icon: 'tag',
-                label: 'Мои объявления',
-                right: logged ? '${app.myPosts.length}' : null,
-                onTap: () => needLogin('Войдите, чтобы видеть свои объявления.', () => push(context, const MyAdsScreen()))),
-            MenuRow(
-                icon: 'heart',
-                label: 'Избранное',
-                right: '${app.favorites.length}',
-                onTap: () => needLogin('Войдите, чтобы сохранять избранное.', () => push(context, const FavoritesScreen()))),
-            MenuRow(
-                icon: 'chat',
-                label: 'Сообщения',
-                right: app.unreadTotal > 0 ? '${app.unreadTotal} ${plural(app.unreadTotal, 'новое', 'новых', 'новых')}' : null,
-                rightAccent: app.unreadTotal > 0,
-                onTap: () => needLogin('Войдите, чтобы переписываться.', () => push(context, const ChatsScreen()))),
-            MenuRow(
-                icon: dark ? 'moon' : 'sun',
-                label: 'Тема',
-                right: dark ? 'Тёмная' : 'Светлая',
-                onTap: () => app.toggleTheme(Theme.of(context).brightness)),
-            MenuRow(icon: 'globe', label: 'Язык', right: 'Русский', onTap: () => toast(context, 'Другие языки появятся позже')),
-            MenuRow(
-                icon: 'help',
-                label: 'Поддержка',
-                onTap: () => toast(context, 'Раздел поддержки скоро появится')),
-          ]),
-          const SizedBox(height: 4),
-          const SectionTitle('Справочник'),
-          const SizedBox(height: 8),
-          MenuGroup(rows: [
-            for (final d in demoDirectory)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(children: [
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(d.name, style: TextStyle(fontSize: 15, color: p.text)),
-                      Text(d.note, style: TextStyle(fontSize: 13, color: p.muted)),
-                    ]),
-                  ),
-                  SizedBox(
-                    height: 36,
-                    child: OutlinedButton(
-                      onPressed: () => openUrl(context, 'tel:${d.phone.replaceAll(' ', '')}', d.phone),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: p.accent,
-                        backgroundColor: p.card,
-                        side: BorderSide(color: p.line2),
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        shape: const StadiumBorder(),
-                        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Ico('phoneCall', size: 15, color: p.accent),
-                        const SizedBox(width: 6),
-                        Text(d.phone),
+    return UnderBar(
+      bar: const GlassBar(title: 'Полезное', subtitle: 'Курс валют и важные номера'),
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
+          sliver: SliverList.list(children: [
+            const ConverterCard(),
+            const SizedBox(height: 6),
+            const SectionTitle('Справочник'),
+            const SizedBox(height: 8),
+            MenuGroup(rows: [
+              for (final d in demoDirectory)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Row(children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(color: p.sel, borderRadius: BorderRadius.circular(12)),
+                      child: Center(child: Ico('phoneCall', size: 18, color: p.accent)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(d.name, style: TextStyle(fontSize: 15, color: p.text, fontWeight: FontWeight.w600)),
+                        Text(d.note, style: TextStyle(fontSize: 13, color: p.muted)),
                       ]),
                     ),
-                  ),
-                ]),
-              ),
+                    GestureDetector(
+                      onTap: () => openUrl(context, 'tel:${d.phone.replaceAll(' ', '')}', d.phone),
+                      child: Container(
+                        height: 36,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(gradient: p.primaryGradient, borderRadius: BorderRadius.circular(18)),
+                        child: Center(
+                          child: Text(d.phone,
+                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: p.onPrimary)),
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
+            ]),
+            const SizedBox(height: 20),
+            Center(child: Text('Свои в Египте · версия 0.4', style: TextStyle(fontSize: 12.5, color: p.muted))),
           ]),
-          const SizedBox(height: 16),
-          Center(child: Text('Свои в Египте · версия 0.3', style: TextStyle(fontSize: 13, color: p.muted))),
-        ]),
-      ),
-    ]);
+        ),
+      ],
+    );
   }
 }
 
@@ -3280,8 +3360,8 @@ class AvatarEditable extends StatelessWidget {
             child: Container(
               width: size * .36,
               height: size * .36,
-              decoration: BoxDecoration(color: teal, shape: BoxShape.circle, border: Border.all(color: p.card, width: 3)),
-              child: Center(child: Ico('camera', size: size * .17, color: Colors.white, stroke: 2.2)),
+              decoration: BoxDecoration(color: p.primary, shape: BoxShape.circle, border: Border.all(color: p.card, width: 3)),
+              child: Center(child: Ico('camera', size: size * .17, color: p.onPrimary, stroke: 2.2)),
             ),
           ),
         ]),
@@ -3803,8 +3883,8 @@ class MyAdsScreen extends StatelessWidget {
           child: FilledButton(
             onPressed: onTap,
             style: FilledButton.styleFrom(
-              backgroundColor: primary ? teal : p.card,
-              foregroundColor: primary ? Colors.white : (fg ?? p.text),
+              backgroundColor: primary ? p.primary : p.soft,
+              foregroundColor: primary ? p.onPrimary : (fg ?? p.text),
               disabledBackgroundColor: p.soft,
               side: primary ? null : BorderSide(color: p.line2),
               padding: EdgeInsets.zero,
@@ -4023,7 +4103,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                                   constraints: const BoxConstraints(minWidth: 22),
                                   height: 22,
                                   padding: const EdgeInsets.symmetric(horizontal: 6),
-                                  decoration: BoxDecoration(color: teal, borderRadius: BorderRadius.circular(11)),
+                                  decoration: BoxDecoration(color: p.primary, borderRadius: BorderRadius.circular(11)),
                                   child: Center(
                                     child: Text('${t.unread}',
                                         style: const TextStyle(
@@ -4160,7 +4240,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               margin: const EdgeInsets.only(bottom: 8),
                               padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
                               decoration: BoxDecoration(
-                                color: mine ? teal : p.card,
+                                color: mine ? p.primary : p.card,
                                 borderRadius: BorderRadius.only(
                                   topLeft: const Radius.circular(18),
                                   topRight: const Radius.circular(18),
@@ -4172,7 +4252,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               child: IntrinsicWidth(
                                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                                   Text(m.text,
-                                      style: TextStyle(fontSize: 15, height: 1.4, color: mine ? Colors.white : p.text)),
+                                      style: TextStyle(fontSize: 15, height: 1.4, color: mine ? p.onPrimary : p.text)),
                                   const SizedBox(height: 2),
                                   Text(timeText(m.date),
                                       textAlign: TextAlign.right,
@@ -4222,7 +4302,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: Container(
                   width: 44,
                   height: 44,
-                  decoration: const BoxDecoration(color: teal, shape: BoxShape.circle),
+                  decoration: BoxDecoration(gradient: p.primaryGradient, shape: BoxShape.circle),
                   child: Center(
                     child: sending
                         ? const SizedBox(

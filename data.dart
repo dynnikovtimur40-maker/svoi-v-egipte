@@ -303,7 +303,8 @@ class AppState extends ChangeNotifier {
   bool loading = false;
   String? error;
   bool guest = false;
-  ThemeMode themeMode = ThemeMode.light;
+  ThemeMode themeMode = ThemeMode.dark;
+  int accent = 0;
 
   User? get user => sb.auth.currentUser;
   String get userName {
@@ -320,11 +321,12 @@ class AppState extends ChangeNotifier {
     try {
       final p = await SharedPreferences.getInstance();
       final t = p.getString('theme');
-      themeMode = t == 'dark'
-          ? ThemeMode.dark
+      themeMode = t == 'light'
+          ? ThemeMode.light
           : t == 'system'
               ? ThemeMode.system
-              : ThemeMode.light;
+              : ThemeMode.dark;
+      accent = p.getInt('accent') ?? 0;
       final c = p.getString('city');
       if (c != null && cities.contains(c)) city = c;
       notifyListeners();
@@ -337,6 +339,15 @@ class AppState extends ChangeNotifier {
     try {
       final p = await SharedPreferences.getInstance();
       await p.setString('theme', m == ThemeMode.dark ? 'dark' : m == ThemeMode.system ? 'system' : 'light');
+    } catch (_) {}
+  }
+
+  Future<void> setAccent(int i) async {
+    accent = i;
+    notifyListeners();
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setInt('accent', i);
     } catch (_) {}
   }
 
