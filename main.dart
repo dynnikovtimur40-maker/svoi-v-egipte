@@ -1483,7 +1483,9 @@ class _AuthScreenState extends State<AuthScreen> {
                 onPressed: resetPassword,
                 style: TextButton.styleFrom(minimumSize: const Size.fromHeight(44)),
                 child: const Text('Забыли пароль?', style: TextStyle(color: Color(0xFFD6EEF0), fontSize: 14)),
-              ),
+              )
+            else
+              const SizedBox(height: 14),
             SizedBox(
               height: 52,
               child: OutlinedButton(
@@ -1526,14 +1528,6 @@ class _HomeShellState extends State<HomeShell> {
     MoreTab(),
   ];
 
-  static const tabDefs = [
-    ['Объявления', 'tag'],
-    ['Услуги', 'tool'],
-    ['Работа', 'bag'],
-    ['Новости', 'news'],
-    ['Ещё', 'menu'],
-  ];
-
   void openAdd() {
     final app = AppScope.of(context);
     if (app.user == null) {
@@ -1545,10 +1539,9 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
-    final app = AppScope.of(context);
-    final p = Pal.of(context);
-    final bottom = MediaQuery.of(context).padding.bottom;
     return Scaffold(
+      drawer: AppDrawer(tab: tab, onSelect: (i) => setState(() => tab = i)),
+      drawerEdgeDragWidth: 28,
       body: IndexedStack(index: tab, children: pages),
       floatingActionButton: tab <= 2
           ? FloatingActionButton.extended(
@@ -1561,64 +1554,221 @@ class _HomeShellState extends State<HomeShell> {
               label: const Text('Разместить', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
             )
           : null,
-      bottomNavigationBar: Container(
-        padding: EdgeInsets.fromLTRB(4, 6, 4, 10 + bottom),
-        decoration: BoxDecoration(color: p.card, border: Border(top: BorderSide(color: p.line))),
-        child: Row(children: [
-          for (var i = 0; i < tabDefs.length; i++)
-            Expanded(
-              child: Semantics(
-                button: true,
-                selected: tab == i,
-                label: tabDefs[i][0],
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => setState(() => tab = i),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      Stack(clipBehavior: Clip.none, children: [
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 180),
-                          width: 56,
-                          height: 30,
-                          decoration: BoxDecoration(
-                              color: tab == i ? p.avatar : Colors.transparent, borderRadius: BorderRadius.circular(15)),
-                          child: Center(child: Ico(tabDefs[i][1], size: 22, color: tab == i ? p.accent : p.muted)),
-                        ),
-                        if (i == 4 && app.unreadTotal > 0)
-                          Positioned(
-                            right: 8,
-                            top: -2,
-                            child: Container(
-                              constraints: const BoxConstraints(minWidth: 18),
-                              height: 18,
-                              padding: const EdgeInsets.symmetric(horizontal: 5),
-                              decoration: BoxDecoration(
-                                  color: const Color(0xFFD93D3D), borderRadius: BorderRadius.circular(9)),
-                              child: Center(
-                                child: Text('${app.unreadTotal}',
-                                    style: const TextStyle(
-                                        color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                              ),
-                            ),
-                          ),
-                      ]),
-                      const SizedBox(height: 3),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(tabDefs[i][0],
-                            maxLines: 1,
-                            style: TextStyle(
-                                fontSize: 12, fontWeight: FontWeight.w600, color: tab == i ? p.accent : p.muted)),
-                      ),
-                    ]),
-                  ),
-                ),
+    );
+  }
+}
+
+/// Кнопка «≡», открывает боковую панель.
+class MenuButton extends StatelessWidget {
+  const MenuButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final app = AppScope.of(context);
+    final p = Pal.of(context);
+    return Semantics(
+      button: true,
+      label: 'Меню',
+      child: GestureDetector(
+        onTap: () => Scaffold.of(context).openDrawer(),
+        child: Stack(clipBehavior: Clip.none, children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(color: p.card, shape: BoxShape.circle, border: Border.all(color: p.line2)),
+            child: Center(child: Ico('menu', size: 20, color: p.text)),
+          ),
+          if (app.unreadTotal > 0)
+            Positioned(
+              right: -1,
+              top: -1,
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                    color: const Color(0xFFD93D3D), shape: BoxShape.circle, border: Border.all(color: p.card, width: 2)),
               ),
             ),
         ]),
       ),
+    );
+  }
+}
+
+/// Боковая панель: разделы, личный кабинет, тема, вход/выход.
+class AppDrawer extends StatelessWidget {
+  const AppDrawer({super.key, required this.tab, required this.onSelect});
+  final int tab;
+  final ValueChanged<int> onSelect;
+
+  static const sections = [
+    ['Объявления', 'tag'],
+    ['Услуги', 'tool'],
+    ['Работа', 'bag'],
+    ['Новости', 'news'],
+    ['Конвертер и справочник', 'coin'],
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final app = AppScope.of(context);
+    final p = Pal.of(context);
+    final logged = app.user != null;
+    final top = MediaQuery.of(context).padding.top;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+
+    void close() => Navigator.of(context).pop();
+    void open(Widget page, String why) {
+      close();
+      if (logged) {
+        push(context, page);
+      } else {
+        askLogin(context, why);
+      }
+    }
+
+    Widget item(String icon, String label,
+        {bool selected = false, VoidCallback? onTap, String? badge, bool danger = false}) {
+      final fg = danger ? p.bad : (selected ? p.accent : p.text);
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        child: Material(
+          color: selected ? p.avatar : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox(
+              height: 48,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Row(children: [
+                  Ico(icon, size: 21, color: danger ? p.bad : (selected ? p.accent : p.muted), stroke: 1.9),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 15, color: fg, fontWeight: selected ? FontWeight.w700 : FontWeight.w500)),
+                  ),
+                  if (badge != null)
+                    Container(
+                      constraints: const BoxConstraints(minWidth: 22),
+                      height: 22,
+                      padding: const EdgeInsets.symmetric(horizontal: 7),
+                      decoration: BoxDecoration(color: p.soft, borderRadius: BorderRadius.circular(11)),
+                      child: Center(
+                          child: Text(badge, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: p.muted))),
+                    ),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    Widget label(String t) => Padding(
+          padding: const EdgeInsets.fromLTRB(26, 14, 16, 6),
+          child: Text(t, style: TextStyle(fontSize: 13, color: p.muted, fontWeight: FontWeight.w600)),
+        );
+
+    return Drawer(
+      width: 304,
+      backgroundColor: p.bg,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.horizontal(right: Radius.circular(24))),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: [
+        // Шапка с пейзажем и пользователем
+        GestureDetector(
+          onTap: () => open(const ProfileScreen(), 'Войдите, чтобы открыть профиль.'),
+          child: Stack(children: [
+            Positioned.fill(child: CustomPaint(painter: SmallScene(dark: p.dark))),
+            Padding(
+              padding: EdgeInsets.fromLTRB(20, 20 + top, 16, 18),
+              child: Row(children: [
+                Avatar(name: logged ? app.userName : '?', url: app.profile?.avatarUrl, size: 52, bg: p.card),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(logged ? app.userName : 'Гость',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: heading(17, weight: FontWeight.w800, color: p.text)),
+                    const SizedBox(height: 2),
+                    Text(logged ? (app.profile?.city ?? 'Каир') : 'Нажмите, чтобы войти',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: p.brown)),
+                  ]),
+                ),
+                Ico('chevron', size: 18, color: p.text),
+              ]),
+            ),
+          ]),
+        ),
+        Expanded(
+          child: ListView(padding: const EdgeInsets.only(bottom: 8), children: [
+            label('Разделы'),
+            for (var i = 0; i < sections.length; i++)
+              item(sections[i][1], sections[i][0], selected: tab == i, onTap: () {
+                onSelect(i);
+                close();
+              }),
+            label('Личный кабинет'),
+            item('user', 'Мой профиль',
+                onTap: () => open(const ProfileScreen(), 'Войдите, чтобы открыть профиль.')),
+            item('doc', 'Мои объявления',
+                badge: logged && app.myPosts.isNotEmpty ? '${app.myPosts.length}' : null,
+                onTap: () => open(const MyAdsScreen(), 'Войдите, чтобы видеть свои объявления.')),
+            item('heart', 'Избранное',
+                badge: app.favorites.isNotEmpty ? '${app.favorites.length}' : null,
+                onTap: () => open(const FavoritesScreen(), 'Войдите, чтобы сохранять избранное.')),
+            item('chat', 'Сообщения',
+                badge: app.unreadTotal > 0 ? '${app.unreadTotal}' : null,
+                onTap: () => open(const ChatsScreen(), 'Войдите, чтобы переписываться.')),
+          ]),
+        ),
+        Divider(height: 1, color: p.line),
+        Padding(
+          padding: EdgeInsets.fromLTRB(0, 6, 0, 8 + MediaQuery.of(context).padding.bottom),
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => app.toggleTheme(Theme.of(context).brightness),
+                  child: SizedBox(
+                    height: 48,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: Row(children: [
+                        Ico(dark ? 'moon' : 'sun', size: 21, color: p.muted, stroke: 1.9),
+                        const SizedBox(width: 14),
+                        Expanded(
+                            child: Text('Тёмная тема',
+                                style: TextStyle(fontSize: 15, color: p.text, fontWeight: FontWeight.w500))),
+                        Toggle(value: dark),
+                      ]),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (logged)
+              item('logout', 'Выйти', danger: true, onTap: () async {
+                close();
+                await app.signOut();
+              })
+            else
+              item('user', 'Войти или зарегистрироваться', onTap: () {
+                close();
+                app.setGuest(false);
+              }),
+          ]),
+        ),
+      ]),
     );
   }
 }
@@ -1804,7 +1954,15 @@ class _ListTabState extends State<ListTab> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(children: [
-              const Spacer(),
+              const MenuButton(),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: heading(20, weight: FontWeight.w800, color: p.dark ? Colors.white : const Color(0xFF13262B))),
+              ),
+              const SizedBox(width: 8),
               Semantics(
                 button: true,
                 label: 'Сменить тему',
@@ -2725,10 +2883,16 @@ class NewsTab extends StatelessWidget {
     final p = Pal.of(context);
     return Column(children: [
       TabHeader(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Новости', style: heading(22, weight: FontWeight.w800, color: p.text)),
-          Text('Важное для русскоязычных в Египте',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: p.brown)),
+        child: Row(children: [
+          const MenuButton(),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Новости', style: heading(22, weight: FontWeight.w800, color: p.text)),
+              Text('Важное для русскоязычных в Египте',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: p.brown)),
+            ]),
+          ),
         ]),
       ),
       Expanded(
@@ -2812,6 +2976,8 @@ class MoreTab extends StatelessWidget {
             () => push(context, const ProfileScreen())),
         child: TabHeader(
           child: Row(children: [
+            const MenuButton(),
+            const SizedBox(width: 12),
             Avatar(name: logged ? app.userName : '?', url: prof?.avatarUrl, size: 48, bg: p.card),
             const SizedBox(width: 12),
             Expanded(
