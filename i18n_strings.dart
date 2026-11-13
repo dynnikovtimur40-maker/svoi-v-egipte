@@ -456,4 +456,12 @@ const Map<String, List<String>> kTr = {
   'Выделение цветом на 7 дней': ['Colour highlight for 7 days', 'Виділення кольором на 7 днів', 'تمييز بلون لمدة 7 أيام', 'Farbige Hervorhebung für 7 Tage'],
   'VIP на 7 дней': ['VIP for 7 days', 'VIP на 7 днів', 'VIP لمدة 7 أيام', 'VIP für 7 Tage'],
   'Система': ['System', 'Система', 'النظام', 'System'],
+  'Объявление нарушает правила сервиса (запрещённая тема)': ['The ad breaks the service rules (prohibited topic)', 'Оголошення порушує правила сервісу (заборонена тема)', 'الإعلان يخالف قواعد الخدمة (موضوع محظور)', 'Die Anzeige verstößt gegen die Regeln (verbotenes Thema)'],
+  'Ссылки в тексте объявления запрещены — укажите контакт в поле «Контакты»': ['Links in the ad text are not allowed — put your contact in the contact field', 'Посилання в тексті оголошення заборонено — вкажіть контакт у полі «Контакти»', 'الروابط ممنوعة في نص الإعلان — ضع وسيلة التواصل في حقل جهة الاتصال', 'Links im Anzeigentext sind verboten — geben Sie den Kontakt im Kontaktfeld an'],
+  'Укажите настоящий номер телефона или Telegram (@username)': ['Enter a real phone number or Telegram (@username)', 'Вкажіть справжній номер телефону або Telegram (@username)', 'أدخل رقم هاتف حقيقيًا أو تيليجرام (‎@username)', 'Geben Sie eine echte Telefonnummer oder Telegram (@username) an'],
+  'Не больше 5 объявлений в сутки. Попробуйте завтра.': ['No more than 5 ads per day. Try tomorrow.', 'Не більше 5 оголошень на добу. Спробуйте завтра.', 'لا يزيد عن 5 إعلانات يوميًا. حاول غدًا.', 'Höchstens 5 Anzeigen pro Tag. Versuchen Sie es morgen.'],
+  'Такое объявление у вас уже есть. Поднимите или измените старое.': ['You already have this ad. Bump or edit the old one.', 'Таке оголошення у вас уже є. Підніміть або змініть старе.', 'لديك هذا الإعلان بالفعل. ارفعه أو عدّل الإعلان القديم.', 'Diese Anzeige haben Sie bereits. Schieben Sie die alte nach oben oder ändern Sie sie.'],
+  'Слишком много сообщений. Подождите минуту.': ['Too many messages. Wait a minute.', 'Забагато повідомлень. Зачекайте хвилину.', 'رسائل كثيرة جدًا. انتظر دقيقة.', 'Zu viele Nachrichten. Bitte eine Minute warten.'],
+  'Ваш профиль уже проверен': ['Your profile is already verified', 'Ваш профіль уже перевірено', 'ملفك الشخصي موثّق بالفعل', 'Ihr Profil ist bereits geprüft'],
+  'Только для администратора': ['Administrators only', 'Лише для адміністратора', 'للمسؤول فقط', 'Nur für Administratoren'],
 };

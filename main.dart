@@ -833,7 +833,12 @@ class Field extends StatelessWidget {
         maxLines: obscure ? 1 : maxLines,
         minLines: maxLines > 1 ? maxLines : null,
         obscureText: obscure,
-        validator: validator,
+        validator: validator == null
+            ? null
+            : (v) {
+                final r = validator!(v);
+                return r == null ? null : tr(r);
+              },
         onFieldSubmitted: onSubmitted,
         onChanged: onChanged,
         enabled: enabled,
