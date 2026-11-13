@@ -179,6 +179,9 @@ begin
   if coalesce(new.title, '') ~ '[A-ZА-ЯЁ]{10,}' or body ~ '(.)\1{6,}' then
     flags := flags || 'капс/повторы';
   end if;
+  if body ~ '(хуй|хуе|хуё|пизд|ебат|ёбан|ебан|ебл|бляд|блять|сука|мудак|fuck|shit|bitch)' then
+    flags := flags || 'мат';
+  end if;
   if new.price_egp is not null and new.price_egp > 50000000 then
     flags := flags || 'странная цена';
   end if;
