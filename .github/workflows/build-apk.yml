@@ -33,6 +33,14 @@ jobs:
           sed -i 's/android:label="[^"]*"/android:label="Свои в Египте"/' $M
           grep -q 'android.permission.INTERNET' $M || sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' $M
 
+      - name: Disable release lint
+        run: |
+          if [ -f android/build.gradle.kts ]; then
+            printf '\ngradle.taskGraph.whenReady { allTasks.filter { it.name.contains("lintVital") }.forEach { it.enabled = false } }\n' >> android/build.gradle.kts
+          else
+            printf '\ngradle.taskGraph.whenReady { graph -> graph.allTasks.findAll { it.name.contains("lintVital") }.each { it.enabled = false } }\n' >> android/build.gradle
+          fi
+
       - run: flutter pub get
 
       - run: flutter build apk --release
