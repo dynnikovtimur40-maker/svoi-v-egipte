@@ -1,0 +1,15 @@
+name: svoi_v_egipte
+description: "Свои в Египте — объявления, услуги, работа и новости для русскоязычных в Египте."
+publish_to: 'none'
+version: 0.2.0+2
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  supabase_flutter: ^2.8.0
+
+flutter:
+  uses-material-design: true
