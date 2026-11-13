@@ -159,7 +159,7 @@ class AppState extends ChangeNotifier {
     try {
       final rows = await sb
           .from('posts')
-          .select('*, profiles(name, verified)')
+          .select('*, profiles!posts_user_id_fkey(name, verified)')
           .eq('status', 'active')
           .order('created_at', ascending: false)
           .limit(300);
