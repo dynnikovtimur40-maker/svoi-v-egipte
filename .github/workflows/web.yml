@@ -1,0 +1,57 @@
+name: Web for iPhone
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Arrange files
+        run: |
+          mkdir -p lib supabase
+          for f in main.dart data.dart config.dart; do [ -f "$f" ] && mv "$f" lib/; done
+          [ -f schema.sql ] && mv schema.sql supabase/ || true
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Generate web project
+        run: |
+          flutter create . --platforms=web --org com.svoivegipte --project-name svoi_v_egipte
+          rm -rf test
+          sed -i 's#<title>[^<]*</title>#<title>Свои в Египте</title>#' web/index.html
+          sed -i 's#content="svoi_v_egipte"#content="Свои в Египте"#g' web/index.html
+          sed -i 's/"name": "[^"]*"/"name": "Свои в Египте"/; s/"short_name": "[^"]*"/"short_name": "Свои в Египте"/; s/"background_color": "[^"]*"/"background_color": "#0B6770"/; s/"theme_color": "[^"]*"/"theme_color": "#0B6770"/' web/manifest.json
+
+      - run: flutter pub get
+
+      - run: flutter build web --release --base-href /svoi-v-egipte/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
