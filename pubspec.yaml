@@ -1,7 +1,7 @@
 name: svoi_v_egipte
 description: "Свои в Египте — объявления, услуги, работа и новости для русскоязычных в Египте."
 publish_to: 'none'
-version: 0.2.0+2
+version: 0.3.0+3
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -10,6 +10,10 @@ dependencies:
   flutter:
     sdk: flutter
   supabase_flutter: ^2.8.0
+  google_fonts: ^6.2.1
+  image_picker: ^1.1.2
+  url_launcher: ^6.3.0
+  shared_preferences: ^2.3.0
 
 flutter:
   uses-material-design: true
