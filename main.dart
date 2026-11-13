@@ -1351,6 +1351,7 @@ class _AuthScreenState extends State<AuthScreen> {
   bool hide = true;
   String? message;
   bool good = false;
+  bool needConfirm = false;
   final name = TextEditingController();
   final email = TextEditingController();
   final pass = TextEditingController();
@@ -1365,6 +1366,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   String translate(String m) {
     final l = m.toLowerCase();
+    if (l.contains('not confirmed')) return 'Почта ещё не подтверждена. Откройте письмо и нажмите ссылку.';
     if (l.contains('invalid login')) return 'Неверная почта или пароль';
     if (l.contains('already registered') || l.contains('already been registered')) {
       return 'Эта почта уже зарегистрирована — войдите';
@@ -1394,15 +1396,23 @@ class _AuthScreenState extends State<AuthScreen> {
     final auth = Supabase.instance.client.auth;
     try {
       if (register) {
-        final res = await auth.signUp(email: e, password: p, data: {'name': name.text.trim()});
+        final res = await auth.signUp(
+            email: e, password: p, data: {'name': name.text.trim()}, emailRedirectTo: siteUrl);
         if (res.session == null && mounted) {
-          say('Готово! Проверьте почту и подтвердите адрес, затем войдите.', ok: true);
+          setState(() {
+            register = false;
+            needConfirm = true;
+          });
+          say('Мы отправили письмо на $e. Откройте его и нажмите ссылку «Подтвердить», затем войдите здесь.', ok: true);
         }
       } else {
         await auth.signInWithPassword(email: e, password: p);
       }
     } on AuthException catch (err) {
-      if (mounted) say(translate(err.message));
+      if (mounted) {
+        if (err.message.toLowerCase().contains('not confirmed')) setState(() => needConfirm = true);
+        say(translate(err.message));
+      }
     } catch (_) {
       if (mounted) say('Нет связи с сервером, попробуйте ещё раз');
     }
@@ -1416,8 +1426,24 @@ class _AuthScreenState extends State<AuthScreen> {
       return;
     }
     try {
-      await Supabase.instance.client.auth.resetPasswordForEmail(e);
+      await Supabase.instance.client.auth.resetPasswordForEmail(e, redirectTo: siteUrl);
       if (mounted) say('Письмо для сброса пароля отправлено', ok: true);
+    } catch (_) {
+      if (mounted) say('Не удалось отправить письмо, попробуйте позже');
+    }
+  }
+
+  Future<void> resend() async {
+    final e = email.text.trim();
+    if (!e.contains('@')) {
+      say('Введите почту, на которую регистрировались');
+      return;
+    }
+    try {
+      await Supabase.instance.client.auth.resend(type: OtpType.signup, email: e, emailRedirectTo: siteUrl);
+      if (mounted) say('Письмо отправлено повторно на $e. Проверьте также папку «Спам».', ok: true);
+    } on AuthException catch (err) {
+      if (mounted) say(translate(err.message));
     } catch (_) {
       if (mounted) say('Не удалось отправить письмо, попробуйте позже');
     }
@@ -1493,6 +1519,15 @@ class _AuthScreenState extends State<AuthScreen> {
                               style: TextStyle(color: good ? p.ok : p.warn, fontSize: 14, height: 1.4)),
                         ),
                       ],
+                      if (needConfirm && !register)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton(
+                            onPressed: resend,
+                            style: TextButton.styleFrom(foregroundColor: p.accent),
+                            child: const Text('Отправить письмо ещё раз', style: TextStyle(fontWeight: FontWeight.w600)),
+                          ),
+                        ),
                       const SizedBox(height: 16),
                       PrimaryButton(register ? 'Зарегистрироваться' : 'Войти', busy: busy, onPressed: submit),
                       if (!register)
