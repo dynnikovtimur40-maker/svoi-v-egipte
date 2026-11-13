@@ -1605,11 +1605,13 @@ class _HomeShellState extends State<HomeShell> {
                           ),
                       ]),
                       const SizedBox(height: 3),
-                      Text(tabDefs[i][0],
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.w600, color: tab == i ? p.accent : p.muted)),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(tabDefs[i][0],
+                            maxLines: 1,
+                            style: TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w600, color: tab == i ? p.accent : p.muted)),
+                      ),
                     ]),
                   ),
                 ),
@@ -1923,15 +1925,17 @@ class _ListTabState extends State<ListTab> {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(name,
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 12,
-                              height: 1.2,
-                              color: p.text,
-                              fontWeight: on ? FontWeight.w700 : FontWeight.w500)),
+                      Builder(builder: (_) {
+                        final st = TextStyle(
+                            fontSize: 12, height: 1.2, color: p.text, fontWeight: on ? FontWeight.w700 : FontWeight.w500);
+                        // Одно слово — не переносим посреди слова, а слегка уменьшаем.
+                        if (!name.contains(' ')) {
+                          return FittedBox(
+                              fit: BoxFit.scaleDown, child: Text(name, maxLines: 1, style: st));
+                        }
+                        return Text(name,
+                            textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: st);
+                      }),
                     ]),
                   ),
                 );
