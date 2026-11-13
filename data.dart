@@ -21,32 +21,78 @@ const sectionSingle = {
 const cities = [
   'Все города',
   'Каир',
+  'Новый Каир',
+  'Гиза',
+  'Шейх-Зайед',
+  '6-го Октября',
   'Хургада',
-  'Шарм-эль-Шейх',
-  'Александрия',
+  'Сахл-Хашиш',
   'Эль-Гуна',
+  'Макади-Бей',
+  'Сома-Бей',
+  'Сафага',
+  'Эль-Кусейр',
+  'Марса-Алам',
+  'Шарм-эль-Шейх',
+  'Дахаб',
+  'Нувейба',
+  'Таба',
+  'Александрия',
+  'Эль-Аламейн',
+  'Айн-Сохна',
+  'Луксор',
+  'Асуан',
 ];
 
 const categories = {
   Section.ads: [
     'Аренда жилья',
+    'Аренда посуточно',
     'Продажа жилья',
+    'Телефоны',
     'Электроника',
+    'Бытовая техника',
     'Мебель',
     'Авто',
+    'Мото и скутеры',
     'Одежда',
+    'Детские товары',
+    'Спорт и дайвинг',
+    'Животные',
     'Отдам даром',
+    'Другое',
   ],
   Section.services: [
     'Ремонт',
+    'Сантехника и электрика',
+    'Уборка',
     'Визы и документы',
+    'Юристы',
+    'Переводчики',
     'Репетиторы',
     'Красота',
+    'Здоровье',
     'Перевозки',
-    'Переводчики',
+    'Трансфер и такси',
+    'Экскурсии',
     'Фото и видео',
+    'IT и компьютеры',
+    'Няни',
+    'Другое',
   ],
-  Section.jobs: ['Вакансии', 'Резюме', 'Удалёнка', 'Туризм'],
+  Section.jobs: ['Вакансии', 'Резюме', 'Удалёнка', 'Туризм', 'Отели и рестораны', 'Другое'],
+};
+
+const searchHints = {
+  Section.ads: 'Квартира, iPhone, диван…',
+  Section.services: 'Сантехник, виза, репетитор…',
+  Section.jobs: 'Гид, няня, удалёнка…',
+};
+
+const priceLabels = {
+  Section.ads: 'Цена, EGP',
+  Section.services: 'Стоимость, EGP',
+  Section.jobs: 'Зарплата в месяц, EGP',
 };
 
 /// Примерный курс. Позже будет загружаться с сервера.
@@ -70,6 +116,30 @@ String priceMain(int? egp) {
   if (egp == null) return 'Договорная';
   if (egp == 0) return 'Бесплатно';
   return '${fmt(egp)} EGP';
+}
+
+/// Цена с учётом раздела: для работы — зарплата в месяц.
+String priceOf(Post p) {
+  if (p.section == Section.jobs) {
+    if (p.priceEgp == null || p.priceEgp == 0) return 'Зарплата договорная';
+    return '${fmt(p.priceEgp!)} EGP/мес';
+  }
+  return priceMain(p.priceEgp);
+}
+
+/// Телефон: 10–15 цифр, можно с «+».
+String? normalizePhone(String raw) {
+  final s = raw.replaceAll(RegExp(r'[\s\-()]'), '');
+  if (!RegExp(r'^\+?\d{10,15}$').hasMatch(s)) return null;
+  return s.startsWith('+') ? s : '+$s';
+}
+
+/// Telegram: @username, 5–32 символа, латиница, цифры, «_».
+String? normalizeTelegram(String raw) {
+  var s = raw.trim().replaceAll(RegExp(r'^(https?://)?t\.me/'), '');
+  if (s.startsWith('@')) s = s.substring(1);
+  if (!RegExp(r'^[A-Za-z][A-Za-z0-9_]{4,31}$').hasMatch(s)) return null;
+  return '@$s';
 }
 
 String priceRub(int? egp) =>
@@ -120,6 +190,7 @@ class Profile {
     this.phone,
     this.avatarUrl,
     this.verified = false,
+    this.role = 'user',
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -130,6 +201,7 @@ class Profile {
         phone: m['phone'] as String?,
         avatarUrl: m['avatar_url'] as String?,
         verified: (m['verified'] ?? false) as bool,
+        role: (m['role'] ?? 'user') as String,
         createdAt: DateTime.tryParse((m['created_at'] ?? '') as String),
       );
 
@@ -139,6 +211,7 @@ class Profile {
   final String? phone;
   final String? avatarUrl;
   final bool verified;
+  final String role;
   final DateTime createdAt;
 }
 
@@ -159,6 +232,7 @@ class Post {
     this.verified = false,
     this.authorAvatar,
     this.authorSince,
+    this.rejectReason,
     DateTime? date,
   }) : date = date ?? DateTime.now();
 
@@ -184,6 +258,7 @@ class Post {
       verified: (prof['verified'] ?? false) as bool,
       authorAvatar: prof['avatar_url'] as String?,
       authorSince: DateTime.tryParse((prof['created_at'] ?? '') as String),
+      rejectReason: m['reject_reason'] as String?,
       date: DateTime.tryParse((m['created_at'] ?? '') as String),
     );
   }
@@ -203,15 +278,46 @@ class Post {
   final bool verified;
   final String? authorAvatar;
   final DateTime? authorSince;
+  final String? rejectReason;
   final DateTime date;
 }
 
 class Review {
-  Review(this.author, this.stars, this.text, this.date);
+  Review({
+    required this.id,
+    required this.author,
+    this.authorAvatar,
+    required this.stars,
+    required this.text,
+    required this.date,
+    this.postTitle = '',
+    this.reply,
+  });
+  final int id;
   final String author;
+  final String? authorAvatar;
   final int stars;
   final String text;
   final DateTime date;
+  final String postTitle;
+  final String? reply;
+}
+
+/// Подтверждённая продавцом сделка — только после неё можно оставить отзыв.
+class Deal {
+  Deal({required this.id, required this.sellerId, required this.buyerId, this.postId, this.reviewed = false});
+  factory Deal.fromMap(Map m, {bool reviewed = false}) => Deal(
+        id: (m['id'] as num).toInt(),
+        sellerId: m['seller_id'] as String,
+        buyerId: m['buyer_id'] as String,
+        postId: m['post_id'] as String?,
+        reviewed: reviewed,
+      );
+  final int id;
+  final String sellerId;
+  final String buyerId;
+  final String? postId;
+  final bool reviewed;
 }
 
 class ChatMessage {
@@ -223,6 +329,7 @@ class ChatMessage {
     required this.date,
     this.postId,
     this.read = false,
+    this.imageUrl,
   });
 
   factory ChatMessage.fromMap(Map m) => ChatMessage(
@@ -232,6 +339,7 @@ class ChatMessage {
         postId: m['post_id'] as String?,
         text: (m['text'] ?? '') as String,
         read: (m['read'] ?? false) as bool,
+        imageUrl: m['image_url'] as String?,
         date: DateTime.tryParse((m['created_at'] ?? '') as String) ?? DateTime.now(),
       );
 
@@ -241,6 +349,7 @@ class ChatMessage {
   final String? postId;
   final String text;
   final bool read;
+  final String? imageUrl;
   final DateTime date;
 }
 
@@ -312,6 +421,8 @@ class AppState extends ChangeNotifier {
     if (p.isNotEmpty) return p;
     return (user?.userMetadata?['name'] as String?) ?? (user?.email ?? 'Гость');
   }
+
+  bool get isAdmin => profile?.role == 'admin';
 
   int get unreadTotal => threads.fold(0, (a, t) => a + t.unread);
 
@@ -395,7 +506,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> loadRatings() async {
     try {
-      final rows = await sb.from('reviews').select('seller_id, stars').limit(2000);
+      final rows = await sb.from('reviews').select('seller_id, stars').not('deal_id', 'is', null).limit(2000);
       final sum = <String, int>{};
       final cnt = <String, int>{};
       for (final r in rows) {
@@ -639,20 +750,26 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Только честные отзывы — оставленные после подтверждённой сделки.
   Future<List<Review>> fetchReviews(String sellerId) async {
     try {
       final rows = await sb
           .from('reviews')
-          .select('stars, text, created_at, author:profiles!reviews_author_id_fkey(name)')
+          .select('id, stars, text, created_at, post_title, reply, author:profiles!reviews_author_id_fkey(name, avatar_url)')
           .eq('seller_id', sellerId)
+          .not('deal_id', 'is', null)
           .order('created_at', ascending: false);
       return rows.map<Review>((m) {
         final a = m['author'] is Map ? m['author'] as Map : const {};
         return Review(
-          (a['name'] ?? 'Пользователь') as String,
-          (m['stars'] as num).toInt(),
-          (m['text'] ?? '') as String,
-          DateTime.tryParse((m['created_at'] ?? '') as String) ?? DateTime.now(),
+          id: (m['id'] as num).toInt(),
+          author: (a['name'] ?? 'Пользователь') as String,
+          authorAvatar: a['avatar_url'] as String?,
+          stars: (m['stars'] as num).toInt(),
+          text: (m['text'] ?? '') as String,
+          date: DateTime.tryParse((m['created_at'] ?? '') as String) ?? DateTime.now(),
+          postTitle: (m['post_title'] ?? '') as String,
+          reply: m['reply'] as String?,
         );
       }).toList();
     } catch (_) {
@@ -660,16 +777,101 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> addReview(String sellerId, int stars, String text) async {
+  /// Сделки между мной и другим человеком (в обе стороны), с отметкой «отзыв уже оставлен».
+  Future<List<Deal>> fetchDealsWith(String otherId) async {
+    final u = user;
+    if (u == null) return [];
+    try {
+      final rows = await sb
+          .from('deals')
+          .select()
+          .or('and(seller_id.eq.${u.id},buyer_id.eq.$otherId),and(seller_id.eq.$otherId,buyer_id.eq.${u.id})')
+          .order('created_at', ascending: false);
+      final ids = rows.map((m) => (m['id'] as num).toInt()).toList();
+      var reviewed = <int>{};
+      if (ids.isNotEmpty) {
+        final rv = await sb.from('reviews').select('deal_id').eq('author_id', u.id).inFilter('deal_id', ids);
+        reviewed = rv.map<int>((m) => (m['deal_id'] as num).toInt()).toSet();
+      }
+      return rows.map<Deal>((m) => Deal.fromMap(m, reviewed: reviewed.contains((m['id'] as num).toInt()))).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Продавец подтверждает, что сделка с покупателем состоялась.
+  Future<void> confirmDeal(String buyerId, String? postId) async {
+    final u = user;
+    if (u == null) throw Exception('Нужно войти');
+    await sb.from('deals').insert({'seller_id': u.id, 'buyer_id': buyerId, 'post_id': postId});
+  }
+
+  Future<void> addReview(Deal deal, int stars, String text, String postTitle) async {
     final u = user;
     if (u == null) throw Exception('Нужно войти');
     await sb.from('reviews').insert({
-      'seller_id': sellerId,
+      'seller_id': deal.sellerId,
       'author_id': u.id,
+      'deal_id': deal.id,
+      'post_title': postTitle,
       'stars': stars,
       'text': text,
     });
     await loadRatings();
+  }
+
+  Future<void> replyReview(int reviewId, String text) async {
+    await sb.from('reviews').update({'reply': text}).eq('id', reviewId);
+  }
+
+  Future<String> postTitleOf(String? postId) async {
+    if (postId == null) return '';
+    for (final p in [...posts, ...myPosts]) {
+      if (p.id == postId) return p.title;
+    }
+    try {
+      final r = await sb.from('posts').select('title').eq('id', postId).maybeSingle();
+      return (r?['title'] ?? '') as String;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  // ---------- Модерация (администратор) ----------
+
+  Future<List<Post>> fetchPending() async {
+    final rows = await sb
+        .from('posts')
+        .select(_postSelect)
+        .eq('status', 'pending')
+        .order('created_at', ascending: true)
+        .limit(200);
+    return rows.map<Post>((m) => Post.fromMap(m)).toList();
+  }
+
+  /// Жалобы: id жалобы, причина, объявление.
+  Future<List<Map<String, dynamic>>> fetchReports() async {
+    final rows = await sb
+        .from('reports')
+        .select('id, reason, created_at, post:posts(*, profiles!posts_user_id_fkey(name, verified, avatar_url, created_at))')
+        .order('created_at', ascending: false)
+        .limit(200);
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  Future<void> moderate(String postId, String status, {String? reason}) async {
+    await sb.from('posts').update({'status': status, 'reject_reason': reason}).eq('id', postId);
+    await load();
+  }
+
+  Future<void> deleteReport(int id) async {
+    await sb.from('reports').delete().eq('id', id);
+  }
+
+  /// Сообщение об ошибке от сервера (наши проверки) — понятным текстом.
+  static String serverMessage(Object e, String fallback) {
+    if (e is PostgrestException && e.code == 'P0001') return e.message;
+    return fallback;
   }
 
   // ---------- Сообщения ----------
@@ -755,7 +957,7 @@ class AppState extends ChangeNotifier {
     return list;
   }
 
-  Future<void> sendMessage(String otherId, String? postId, String text) async {
+  Future<void> sendMessage(String otherId, String? postId, String text, {String? imageUrl}) async {
     final u = user;
     if (u == null) throw Exception('Нужно войти');
     await sb.from('messages').insert({
@@ -763,6 +965,7 @@ class AppState extends ChangeNotifier {
       'receiver_id': otherId,
       'post_id': postId,
       'text': text,
+      if (imageUrl != null) 'image_url': imageUrl,
     });
     loadThreads();
   }
