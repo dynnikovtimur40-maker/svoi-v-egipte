@@ -97,7 +97,14 @@ try {
   check('автор видит, сколько добавили в избранное', (favs ?? []).some((f) => f.post_id === p1.data.id && Number(f.favs) === 1), JSON.stringify(favs));
 
   // --- Сообщения и блокировка
+  // мгновенная доставка (realtime): A слушает свои входящие
+  let rtGot = false, rtStatus = '';
+  const ch = A.c.channel('inbox-' + A.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${A.id}` }, () => { rtGot = true; });
+  await new Promise((res) => { ch.subscribe((st) => { rtStatus = st; if (st === 'SUBSCRIBED' || st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') res(); }); setTimeout(res, 8000); });
   const m1 = await B.c.from('messages').insert({ sender_id: B.id, receiver_id: A.id, post_id: p1.data.id, text: 'Здравствуйте, актуально?' });
+  for (let i = 0; i < 20 && !rtGot; i++) await sleep(300);
+  check('сообщение приходит мгновенно (realtime)', rtGot, `status=${rtStatus}`);
+  await A.c.removeChannel(ch);
   check('покупатель пишет продавцу', !m1.error, errText(m1.error));
   const m2 = await B.c.from('messages').insert({ sender_id: B.id, receiver_id: A.id, post_id: p1.data.id, text: 'ты сука' });
   check('мат в чате не отправляется', !!m2.error && /нецензурн/i.test(m2.error.message), errText(m2.error));
