@@ -232,7 +232,7 @@ try {
   const pay = await A.c.functions.invoke('payments', { body: { post_id: edit.data.id, product: 'vip' } });
   const payErr = pay.error ? await pay.error.context?.json?.().catch(() => ({})) : pay.data;
   check('оплата без ключей Paymob отвечает понятно', JSON.stringify(payErr ?? {}).includes('not_configured') || JSON.stringify(payErr ?? {}).includes('not_active'), JSON.stringify(payErr));
-  const ap = await A.c.rpc('admin_promote', { p_post: edit.data.id, p_product: 'vip' });
+  const ap = await B.c.rpc('admin_promote', { p_post: edit.data.id, p_product: 'vip' });
   check('обычный пользователь не выдаёт себе VIP', !!ap.error, errText(ap.error));
   const prods = await anon.from('products').select('code, price_egp');
   check('тарифы продвижения доступны', (prods.data ?? []).length === 3, JSON.stringify(prods.data));
