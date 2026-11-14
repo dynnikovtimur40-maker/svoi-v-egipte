@@ -3569,6 +3569,7 @@ class _ConverterCardState extends State<ConverterCard> {
 
   @override
   Widget build(BuildContext context) {
+    AppScope.of(context); // перерисовать, когда загрузится свежий курс
     final p = Pal.of(context);
     Widget cell(String label, String v) => Expanded(
           child: Container(
