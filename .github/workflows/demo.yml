@@ -1,0 +1,21 @@
+name: Demo data
+on:
+  push:
+    branches: [main]
+    paths: ['tests/demo.txt']
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    env:
+      SB: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Keys
+        run: |
+          SERVICE=$(curl -s -H "Authorization: Bearer $SB" "https://api.supabase.com/v1/projects/pjjeypdxwnbtyqabhroi/api-keys?reveal=true" | python3 -c "import json,sys;print(next(x['api_key'] for x in json.load(sys.stdin) if x['name']=='service_role'))")
+          echo "::add-mask::$SERVICE"; echo "SERVICE=$SERVICE" >> "$GITHUB_ENV"
+      - run: cd tests && npm init -y >/dev/null && npm i @supabase/supabase-js@2 >/dev/null
+      - run: MODE=$(head -1 tests/demo.txt) node tests/demo.mjs
