@@ -1,0 +1,37 @@
+name: Database
+
+# Применяет SQL-файлы из db/run.txt (по одному в строке) к базе Supabase
+# через Management API. Результат каждого файла — в аннотациях запуска.
+on:
+  push:
+    branches: [main]
+    paths: ['db/run.txt']
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    env:
+      SB: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      REF: pjjeypdxwnbtyqabhroi
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply SQL
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            f="$(echo "$f" | tr -d '\r')"
+            [ -z "$f" ] && continue
+            case "$f" in \#*) continue;; esac
+            body=$(python3 -c 'import json,sys;print(json.dumps({"query":open(sys.argv[1]).read()}))' "$f")
+            code=$(curl -s -o out.json -w '%{http_code}' -X POST \
+              -H "Authorization: Bearer $SB" -H 'Content-Type: application/json' \
+              "https://api.supabase.com/v1/projects/$REF/database/query" -d "$body")
+            msg=$(head -c 6000 out.json | python3 -c 'import sys,urllib.parse;print(sys.stdin.read().replace("%","%25").replace("\n","%0A"))')
+            if [ "$code" -ge 200 ] && [ "$code" -lt 300 ]; then
+              echo "::notice title=$f::$msg"
+            else
+              echo "::error title=$f (HTTP $code)::$msg"; fail=1
+            fi
+          done < db/run.txt
+          exit $fail

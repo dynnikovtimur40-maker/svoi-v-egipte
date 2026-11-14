@@ -3,7 +3,7 @@
 Код уже в репозитории. Ключи вставляются один раз: GitHub → репозиторий → **Settings → Secrets and variables → Actions → New repository secret**. После добавления: **Actions → Supabase functions → Run workflow**.
 
 ## 1. База (обязательно)
-Supabase → SQL Editor → вставить `schema_v4.sql` → Run (должно вывести `v4 ok`).
+Применяется автоматически (db/run.txt). Вручную: SQL Editor → `db/schema_v4.sql` → Run (должно вывести `v4 ok`).
 
 ## 2. Публикация серверных функций (обязательно)
 Supabase → аватар → **Account → Access Tokens → Generate** → секрет `SUPABASE_ACCESS_TOKEN`.
