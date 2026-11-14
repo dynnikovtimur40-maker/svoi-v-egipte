@@ -106,11 +106,14 @@ class HomeTab extends StatelessWidget {
                       Ico('coin', size: 16, color: p.onPrimary),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: w.Text(
-                          '1 \$ = ${egpPerUsd.toStringAsFixed(1)} EGP  ·  1 € = ${egpPerEur.toStringAsFixed(1)} EGP  ·  100 EGP = ${fmt(100 * rubPerEgp)} ₽',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: p.onPrimary),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: w.Text(
+                            '1 \$ = ${egpPerUsd.toStringAsFixed(1)} EGP  ·  1 € = ${egpPerEur.toStringAsFixed(1)}  ·  100 EGP = ${fmt(100 * rubPerEgp)} ₽',
+                            maxLines: 1,
+                            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: p.onPrimary),
+                          ),
                         ),
                       ),
                     ]),
@@ -142,11 +145,13 @@ class HomeTab extends StatelessWidget {
                         child: Center(child: Ico(a.$1, size: 19, color: a.$2 == 'SOS' ? p.bad : p.accent)),
                       ),
                       const SizedBox(height: 6),
-                      Text(a.$2,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: p.text)),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(a.$2,
+                            maxLines: 1,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: p.text)),
+                      ),
                     ]),
                   ),
               ],
