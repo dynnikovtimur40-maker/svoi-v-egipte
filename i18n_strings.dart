@@ -831,4 +831,7 @@ const Map<String, List<String>> kTr = {
   'Удобства': ['Amenities', 'Зручності', 'المرافق', 'Ausstattung'],
   'У моря': ['Near the sea', 'Біля моря', 'قرب البحر', 'Am Meer'],
   'С животными': ['With pets', 'З тваринами', 'مع الحيوانات', 'Mit Haustieren'],
+  'Цена в месяц, EGP': ['Price per month, EGP', 'Ціна на місяць, EGP', 'السعر شهريًا، جنيه', 'Preis pro Monat, EGP'],
+  'Цена за сутки, EGP': ['Price per day, EGP', 'Ціна за добу, EGP', 'السعر لليوم، جنيه', 'Preis pro Tag, EGP'],
+  'Бюджет, EGP': ['Budget, EGP', 'Бюджет, EGP', 'الميزانية، جنيه', 'Budget, EGP'],
 };

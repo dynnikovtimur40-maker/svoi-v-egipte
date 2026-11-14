@@ -2536,7 +2536,7 @@ class _ListTabState extends State<ListTab> {
     final p = Pal.of(context);
     final items = app.filter(widget.section, cat, query, filters);
     final catNames = <String?>[null, ...categories[widget.section]!];
-    final title = sectionNames[widget.section]!;
+    final title = widget.section == Section.realty ? 'Жильё' : sectionNames[widget.section]!;
 
     final cityChip = GestureDetector(
       onTap: pickCity,
@@ -3652,7 +3652,14 @@ class _AddPostScreenState extends State<AddPostScreen> {
                   Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Expanded(
                       child: Field(
-                        label: priceLabels[section]!,
+                        label: section != Section.realty
+                            ? priceLabels[section]!
+                            : switch (category) {
+                                'Аренда на месяц' => 'Цена в месяц, EGP',
+                                'Посуточно' => 'Цена за сутки, EGP',
+                                'Ищу жильё' => 'Бюджет, EGP',
+                                _ => 'Цена, EGP',
+                              },
                         controller: price,
                         hint: section == Section.jobs ? 'Пусто — договорная' : 'Пусто — договорная, 0 — бесплатно',
                         keyboard: TextInputType.number,
