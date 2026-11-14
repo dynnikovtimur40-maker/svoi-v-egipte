@@ -15,7 +15,7 @@ jobs:
       PROJECT: pjjeypdxwnbtyqabhroi
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
-      TELEGRAM_CHANNEL_ID: ''
+      TELEGRAM_CHANNEL_ID: '@svoi_egypt'
       PAYMOB_SECRET_KEY: ${{ secrets.PAYMOB_SECRET_KEY }}
       PAYMOB_PUBLIC_KEY: ${{ secrets.PAYMOB_PUBLIC_KEY }}
       PAYMOB_INTEGRATION_IDS: ${{ secrets.PAYMOB_INTEGRATION_IDS }}

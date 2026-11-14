@@ -1,0 +1,23 @@
+name: Telegram channel setup
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/tg-channel.yml']
+  workflow_dispatch:
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Photo and first news
+        env:
+          TG: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          SB: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          r=$(curl -s -F chat_id=@svoi_egypt -F photo=@assets/logo.png "https://api.telegram.org/bot$TG/setChatPhoto" | jq -c '{ok,description}')
+          echo "::notice title=photo::$r"
+          sleep 60
+          key=$(curl -s -H "Authorization: Bearer $SB" "https://api.supabase.com/v1/projects/pjjeypdxwnbtyqabhroi/api-keys?reveal=true" | jq -r '.[] | select(.name=="service_role") | .api_key')
+          echo "::add-mask::$key"
+          out=$(curl -s -X POST "https://pjjeypdxwnbtyqabhroi.supabase.co/functions/v1/news-sync?force=1" -H "Authorization: Bearer $key" | head -c 400)
+          echo "::notice title=news-sync::$out"
