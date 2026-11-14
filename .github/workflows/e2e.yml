@@ -1,0 +1,31 @@
+name: E2E tests
+
+# Сквозные проверки на настоящем сервере с временными тестовыми аккаунтами.
+on:
+  push:
+    branches: [main]
+    paths: ['tests/**', '.github/workflows/e2e.yml']
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      SB: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      TG: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Keys
+        run: |
+          curl -s -H "Authorization: Bearer $SB" "https://api.supabase.com/v1/projects/pjjeypdxwnbtyqabhroi/api-keys?reveal=true" > keys.json
+          ANON=$(python3 -c "import json;k=json.load(open('keys.json'));print(next(x['api_key'] for x in k if x['name']=='anon'))")
+          SERVICE=$(python3 -c "import json;k=json.load(open('keys.json'));print(next(x['api_key'] for x in k if x['name']=='service_role'))")
+          rm keys.json
+          echo "::add-mask::$ANON"; echo "::add-mask::$SERVICE"
+          echo "ANON=$ANON" >> "$GITHUB_ENV"; echo "SERVICE=$SERVICE" >> "$GITHUB_ENV"
+      - run: cd tests && npm init -y >/dev/null && npm i @supabase/supabase-js@2 >/dev/null
+      - name: Run
+        run: node tests/e2e.mjs
