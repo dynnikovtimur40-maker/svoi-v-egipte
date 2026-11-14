@@ -3030,6 +3030,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
     final e = widget.edit;
     city = e?.city ?? (cities.contains(prof?.city) && prof?.city != cities.first ? prof!.city : cities[1]);
     if (e == null && (prof?.phone ?? '').isNotEmpty) phone.text = prof!.phone!;
+    if (e == null && (prof?.tgUsername ?? '').isNotEmpty) tg.text = '@${prof!.tgUsername}';
   }
 
   @override
