@@ -194,7 +194,7 @@ const guideCities = <GuideCity>[
       road: '1–1.5 hours by taxi or bus from Sharm El Sheikh.',
     )),
   GuideCity('Марса-Алам', 'search', 0xFF14B8A6,
-    wiki: 'Marsa_Alam', lat: 25.0676, lon: 34.879, places: [GuidePlace('Вади-эль-Гимал', 'Wadi El Gemal', 'Wadi_El_Gemal_National_Park'), GuidePlace('Порт Галиб', 'Port Ghalib', 'Port_Ghalib'), GuidePlace('Дюгони', 'Dugongs', 'Dugong')],
+    wiki: 'Marsa_Alam', lat: 25.0676, lon: 34.879, places: [GuidePlace('Вади-эль-Гимал', 'Wadi El Gemal', 'Wadi_El_Gemal_National_Park'), GuidePlace('Морские черепахи', 'Sea turtles', 'Green_sea_turtle'), GuidePlace('Дюгони', 'Dugongs', 'Dugong')],
     GuidePart(
       intro: 'Дикий юг Красного моря: дюгони, черепахи, дельфины и почти пустые пляжи.',
       sights: ['Бухта Абу-Дабаб — черепахи и дюгони', 'Риф Самадай — дом дельфинов', 'Национальный парк Вади-эль-Гимал', 'Порт Галиб'],
