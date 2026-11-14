@@ -1229,25 +1229,88 @@ class SubHeader extends StatelessWidget {
   }
 }
 
-/// Логотип: пирамида на градиенте акцента.
+/// Логотип: солнце над пирамидой и море — на «сквиркле» в стиле иконки iPhone.
 class AppLogo extends StatelessWidget {
   const AppLogo({super.key, this.size = 56});
   final double size;
 
   @override
-  Widget build(BuildContext context) {
-    final p = Pal.of(context);
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        gradient: p.primaryGradient,
-        borderRadius: BorderRadius.circular(size * .3),
-        boxShadow: [BoxShadow(color: p.primary.withAlpha(90), blurRadius: 24, offset: const Offset(0, 8))],
-      ),
-      child: Center(child: Ico('pyramid', size: size * .56, color: p.onPrimary, stroke: 2, fill: p.onPrimary.withAlpha(60))),
-    );
+  Widget build(BuildContext context) => Container(
+        width: size,
+        height: size,
+        decoration: ShapeDecoration(
+          shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(size * .5)),
+          shadows: [BoxShadow(color: const Color(0xFF0F766E).withAlpha(110), blurRadius: size * .4, offset: Offset(0, size * .12))],
+        ),
+        child: ClipPath(
+          clipper: ShapeBorderClipper(shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(size * .5))),
+          child: CustomPaint(size: Size.square(size), painter: _LogoPainter()),
+        ),
+      );
+}
+
+class _LogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas c, Size sz) {
+    final s = sz.width;
+    final r = Offset.zero & sz;
+    // фон: бирюза → глубокое море
+    c.drawRect(
+        r,
+        Paint()
+          ..shader = const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF2DD4BF), Color(0xFF0F766E), Color(0xFF0B3B4A)],
+            stops: [0, .55, 1],
+          ).createShader(r));
+    // солнце
+    final sun = Offset(s * .64, s * .36);
+    c.drawCircle(sun, s * .3, Paint()..shader = RadialGradient(colors: const [Color(0x66FDE68A), Color(0x00FDE68A)]).createShader(Rect.fromCircle(center: sun, radius: s * .3)));
+    c.drawCircle(
+        sun,
+        s * .15,
+        Paint()
+          ..shader = const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFFEF3C7), Color(0xFFF59E0B)])
+              .createShader(Rect.fromCircle(center: sun, radius: s * .15)));
+    // пирамида: освещённая и теневая грани
+    final top = Offset(s * .44, s * .26), left = Offset(s * .1, s * .74), right = Offset(s * .86, s * .74), mid = Offset(s * .54, s * .74);
+    c.drawPath(
+        Path()..addPolygon([top, left, mid], true),
+        Paint()
+          ..shader = const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFFFF1C2), Color(0xFFF7C96B)])
+              .createShader(r));
+    c.drawPath(
+        Path()..addPolygon([top, mid, right], true),
+        Paint()
+          ..shader = const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFE59A2F), Color(0xFFB45309)])
+              .createShader(r));
+    // море
+    final sea = Rect.fromLTWH(0, s * .74, s, s * .26);
+    c.drawRect(sea, Paint()..shader = const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF0EA5E9), Color(0xFF075985)]).createShader(sea));
+    final wave = Paint()
+      ..color = const Color(0xB3FFFFFF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = s * .035
+      ..strokeCap = StrokeCap.round;
+    for (final (y, x0, x1) in [(s * .83, s * .18, s * .62), (s * .92, s * .42, s * .84)]) {
+      final path = Path()..moveTo(x0, y);
+      final step = (x1 - x0) / 4;
+      for (var i = 0; i < 4; i++) {
+        path.quadraticBezierTo(x0 + step * (i + .5), y + (i.isEven ? -s * .025 : s * .025), x0 + step * (i + 1), y);
+      }
+      c.drawPath(path, wave);
+    }
+    // стеклянный блик
+    c.drawRect(
+        Rect.fromLTWH(0, 0, s, s * .5),
+        Paint()
+          ..shader = const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0x40FFFFFF), Color(0x00FFFFFF)])
+              .createShader(Rect.fromLTWH(0, 0, s, s * .5)));
   }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class DashedBorder extends CustomPainter {
@@ -1749,19 +1812,41 @@ class MenuButton extends StatelessWidget {
   const MenuButton({super.key});
 
   @override
+  Widget build(BuildContext context) =>
+      IconBtn('menu', label: 'Меню', onTap: () => Scaffold.of(context).openDrawer());
+}
+
+/// Кнопка «Сообщения» рядом с меню — со счётчиком непрочитанных.
+class ChatsButton extends StatelessWidget {
+  const ChatsButton({super.key});
+
+  @override
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
     final p = Pal.of(context);
+    final n = app.unreadTotal;
     return Stack(clipBehavior: Clip.none, children: [
-      IconBtn('menu', label: 'Меню', onTap: () => Scaffold.of(context).openDrawer()),
-      if (app.unreadTotal > 0)
+      IconBtn('chat', label: 'Сообщения', onTap: () {
+        if (app.user == null) {
+          askLogin(context, 'Войдите, чтобы переписываться.');
+        } else {
+          push(context, const ChatsScreen());
+        }
+      }),
+      if (n > 0)
         Positioned(
-          right: 0,
-          top: 0,
+          right: -3,
+          top: -3,
           child: Container(
-            width: 11,
-            height: 11,
-            decoration: BoxDecoration(color: const Color(0xFFF43F5E), shape: BoxShape.circle, border: Border.all(color: p.bg, width: 2)),
+            constraints: const BoxConstraints(minWidth: 19),
+            height: 19,
+            padding: const EdgeInsets.symmetric(horizontal: 5),
+            decoration: BoxDecoration(
+                color: const Color(0xFFF43F5E), borderRadius: BorderRadius.circular(10), border: Border.all(color: p.bg, width: 2)),
+            child: Center(
+              child: Text(n > 99 ? '99+' : '$n',
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white, height: 1)),
+            ),
           ),
         ),
     ]);
@@ -2061,7 +2146,8 @@ class GlassBar extends StatelessWidget {
     final p = Pal.of(context);
     final top = MediaQuery.of(context).padding.top;
     return Glass(
-      opacity: p.dark ? .62 : .75,
+      opacity: p.dark ? .34 : .48,
+      blur: 30,
       border: false,
       child: Container(
         decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.glassLine))),
@@ -2069,6 +2155,8 @@ class GlassBar extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
             const MenuButton(),
+            const SizedBox(width: 8),
+            const ChatsButton(),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
