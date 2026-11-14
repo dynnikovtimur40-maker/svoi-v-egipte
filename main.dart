@@ -487,20 +487,20 @@ class Glass extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Pal.of(context);
     final br = BorderRadius.circular(radius);
+    final box = Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: color ?? p.glass(opacity),
+        borderRadius: br,
+        border: border ? Border.all(color: p.glassLine) : null,
+      ),
+      child: child,
+    );
+    // blur: 0 — без размытия (дёшево), для мелких элементов
+    if (blur <= 0) return box;
     return ClipRRect(
       borderRadius: br,
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-        child: Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            color: color ?? p.glass(opacity),
-            borderRadius: br,
-            border: border ? Border.all(color: p.glassLine) : null,
-          ),
-          child: child,
-        ),
-      ),
+      child: BackdropFilter(filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur), child: box),
     );
   }
 }
@@ -1183,7 +1183,7 @@ class IconBtn extends StatelessWidget {
       body = SizedBox(
         width: box,
         height: box,
-        child: Glass(radius: box / 2, opacity: p.dark ? .55 : .7, blur: 16, child: ico),
+        child: Glass(radius: box / 2, opacity: p.dark ? .7 : .82, blur: 0, child: ico),
       );
     } else {
       body = Container(

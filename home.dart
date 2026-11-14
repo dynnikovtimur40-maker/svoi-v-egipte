@@ -1,6 +1,4 @@
 // Главная: быстрый доступ ко всему, курс, погода, свежие новости и объявления.
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart' hide Text;
 import 'package:flutter/widgets.dart' as w show Text;
 
@@ -181,12 +179,12 @@ class GlassTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Pal.of(context);
     final br = BorderRadius.circular(radius);
+    // без BackdropFilter: размытие на каждой плитке сильно тормозит веб-версию
     return ClipRRect(
       borderRadius: br,
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+      child: RepaintBoundary(
         child: Material(
-          color: p.dark ? const Color(0x17FFFFFF) : const Color(0x0D0B2B33),
+          color: p.dark ? const Color(0x1CFFFFFF) : const Color(0x0D0B2B33),
           shape: RoundedRectangleBorder(
               borderRadius: br, side: BorderSide(color: p.dark ? const Color(0x2EFFFFFF) : const Color(0x1A0B2B33), width: .8)),
           clipBehavior: Clip.antiAlias,
