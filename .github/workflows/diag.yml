@@ -22,15 +22,9 @@ jobs:
           echo "::notice title=verifications::$r"
       - name: Function logs
         run: |
-          SQL="select datetime(timestamp) t, m.function_id, r.method, resp.status_code, request.url from function_edge_logs cross join unnest(metadata) as m cross join unnest(m.request) as request cross join unnest(m.response) as resp cross join unnest(m.request) as r where request.url like '%tg-bot%' order by timestamp desc limit 15"
-          enc=$(python3 -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))' "$SQL")
           now=$(date -u +%Y-%m-%dT%H:%M:%SZ); from=$(date -u -d '-14 hours' +%Y-%m-%dT%H:%M:%SZ)
-          r=$(curl -s -H "Authorization: Bearer $SB" "https://api.supabase.com/v1/projects/pjjeypdxwnbtyqabhroi/analytics/endpoints/logs.all?sql=$enc&iso_timestamp_start=$from&iso_timestamp_end=$now" | head -c 5000)
-          echo "::notice title=edge::$(echo "$r" | python3 -c 'import sys,json
-d=json.load(sys.stdin)
-rows=d.get("result") or []
-print(" | ".join(f"{x.get(\"t\")} {x.get(\"method\")} {x.get(\"status_code\")} {str(x.get(\"url\"))[-40:]}" for x in rows) or str(d)[:800])')"
-          SQL2="select datetime(timestamp) t, event_message from function_logs where metadata[SAFE_OFFSET(0)].function_id is not null order by timestamp desc limit 15"
-          enc=$(python3 -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))' "$SQL2")
-          r=$(curl -s -H "Authorization: Bearer $SB" "https://api.supabase.com/v1/projects/pjjeypdxwnbtyqabhroi/analytics/endpoints/logs.all?sql=$enc&iso_timestamp_start=$from&iso_timestamp_end=$now" | head -c 5000)
-          echo "::notice title=console::$(echo "$r" | tr '\n' ' ' | head -c 3000)"
+          for SQL in "select datetime(timestamp) as t, event_message from function_edge_logs where event_message like '%tg-bot%' order by timestamp desc limit 12" "select datetime(timestamp) as t, event_message from function_logs order by timestamp desc limit 12"; do
+            enc=$(python3 -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))' "$SQL")
+            curl -s -H "Authorization: Bearer $SB" "https://api.supabase.com/v1/projects/pjjeypdxwnbtyqabhroi/analytics/endpoints/logs.all?sql=$enc&iso_timestamp_start=$from&iso_timestamp_end=$now" > l.json || true
+            echo "::notice title=logs::$(head -c 3500 l.json | tr '\n' ' ')"
+          done
