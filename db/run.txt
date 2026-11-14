@@ -1,2 +1,1 @@
-db/schema_v5.sql
-# 1794617969
+db/schema_v6.sql

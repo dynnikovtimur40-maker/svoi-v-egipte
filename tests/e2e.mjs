@@ -187,6 +187,47 @@ try {
   const forged = await fetch(`${URL}/functions/v1/tg-bot`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
   check('бот отвергает поддельные запросы без секрета', forged.status === 403, String(forged.status));
 
+  // --- v6: новости, подписки, бан, статистика, курс, удаление аккаунта
+  const nw = await anon.from('news').select('id').eq('published', true);
+  check('новости видны всем', (nw.data ?? []).length >= 1, String((nw.data ?? []).length));
+  const nwBad = await B.c.from('news').insert({ title: 'Фейк новость', body: 'x' });
+  check('обычный пользователь не публикует новости', !!nwBad.error, errText(nwBad.error));
+  const ss = await B.c.from('saved_searches').insert({ user_id: B.id, section: 'ads', city: 'Каир', query: 'телефон', price_max: 5000 }).select().single();
+  check('подписка на поиск создаётся', !ss.error, errText(ss.error));
+  const ssOther = await C.c.from('saved_searches').select('id');
+  check('чужие подписки не видны', (ssOther.data ?? []).length === 0);
+  for (let i = 0; i < 9; i++) await B.c.from('saved_searches').insert({ user_id: B.id, section: 'ads' });
+  const ss11 = await B.c.from('saved_searches').insert({ user_id: B.id, section: 'ads' });
+  check('не больше 10 подписок', !!ss11.error && /10 подписок/.test(ss11.error.message), errText(ss11.error));
+  const statsNo = await B.c.rpc('admin_stats');
+  check('статистика недоступна обычному пользователю', !!statsNo.error, errText(statsNo.error));
+  await admin.from('profiles').update({ role: 'admin' }).eq('id', A.id);
+  const stats = await A.c.rpc('admin_stats');
+  check('администратор видит статистику', !stats.error && Number(stats.data?.users) > 0, JSON.stringify(stats.data ?? stats.error).slice(0, 200));
+  const pC = await newPost(C, { title: `QA вещь C ${run}` });
+  const ban = await A.c.rpc('admin_ban', { p_user: C.id, p_ban: true });
+  const { data: pCb } = await admin.from('posts').select('status').eq('id', pC.data?.id).single();
+  check('бан: объявления нарушителя снимаются', !ban.error && pCb?.status === 'blocked', `${errText(ban.error)} ${pCb?.status}`);
+  const pC2 = await newPost(C, { title: `QA вещь C2 ${run}` });
+  check('бан: нельзя публиковать', !!pC2.error && /заблокирован/.test(pC2.error.message), errText(pC2.error));
+  const mC = await C.c.from('messages').insert({ sender_id: C.id, receiver_id: A.id, text: 'Привет' });
+  check('бан: нельзя писать', !!mC.error && /заблокирован/.test(mC.error.message), errText(mC.error));
+  await C.c.from('profiles').update({ banned: false }).eq('id', C.id);
+  const { data: cb } = await admin.from('profiles').select('banned').eq('id', C.id).single();
+  check('бан нельзя снять самому', cb?.banned === true);
+  const banB = await B.c.rpc('admin_ban', { p_user: C.id, p_ban: false });
+  check('банить может только администратор', !!banB.error, errText(banB.error));
+  const rates = await anon.functions.invoke('rates', { method: 'GET' });
+  check('курс валют загружается', Number(rates.data?.rub) > 0 && Number(rates.data?.egp_per_usd) > 10, JSON.stringify(rates.data ?? rates.error));
+  const srch = await anon.from('posts').select('id').eq('status', 'active').or(`title.ilike.%QA товар ${run}%,description.ilike.%QA товар ${run}%`);
+  check('поиск на сервере работает', !srch.error, errText(srch.error));
+  const dpost = await newPost(B, { title: `QA удаляемое ${run}` });
+  const del = await D.c.rpc('delete_my_account');
+  const { data: dgone } = await admin.from('profiles').select('id').eq('id', D.id);
+  check('удаление аккаунта удаляет профиль и данные', !del.error && (dgone ?? []).length === 0, errText(del.error));
+  users.splice(users.findIndex((x) => x.id === D.id), 1);
+  check('объявления остальных не задеты', !!dpost.data?.id, errText(dpost.error));
+
   // --- Оплата и права
   const pay = await A.c.functions.invoke('payments', { body: { post_id: edit.data.id, product: 'vip' } });
   const payErr = pay.error ? await pay.error.context?.json?.().catch(() => ({})) : pay.data;

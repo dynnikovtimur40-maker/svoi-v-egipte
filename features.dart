@@ -977,8 +977,30 @@ Future<void> showUserMenu(BuildContext context, {required String userId, require
     return;
   }
   final blocked = app.blockedIds.contains(userId);
-  final act = await pickOption(context, name, ['Пожаловаться на пользователя', blocked ? 'Разблокировать' : 'Заблокировать'], '');
+  Profile? target;
+  if (app.isAdmin) target = await app.fetchProfile(userId);
+  if (!context.mounted) return;
+  final act = await pickOption(context, name, [
+    'Пожаловаться на пользователя',
+    blocked ? 'Разблокировать' : 'Заблокировать',
+    if (app.isAdmin) target?.banned == true ? 'Снять бан (админ)' : 'Забанить нарушителя (админ)',
+  ], '');
   if (act == null || !context.mounted) return;
+  if (act.endsWith('(админ)')) {
+    final ban = act.startsWith('Забанить');
+    if (ban) {
+      final yes = await confirmDialog(context, tr('Забанить {n}?', {'n': name}),
+          'Все его объявления будут сняты, публиковать и писать он больше не сможет.', 'Забанить');
+      if (!yes || !context.mounted) return;
+    }
+    try {
+      await app.adminBan(userId, ban);
+      if (context.mounted) toast(context, ban ? 'Пользователь забанен' : 'Бан снят');
+    } catch (e) {
+      if (context.mounted) toast(context, AppState.serverMessage(e, 'Не удалось. Попробуйте ещё раз.'));
+    }
+    return;
+  }
   if (act == 'Пожаловаться на пользователя') {
     final reason = await pickOption(context, 'Причина жалобы', userReportReasons, '');
     if (reason == null || !context.mounted) return;
@@ -1445,6 +1467,400 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                 ),
         ),
       ]),
+    );
+  }
+}
+
+
+// =====================================================================
+// Поделиться объявлением
+// =====================================================================
+
+String postLink(Post p) => '$siteUrl?post=${p.id}';
+
+Future<void> sharePost(BuildContext context, Post p) async {
+  final link = postLink(p);
+  final text = '${p.title} · ${priceOf(p)}';
+  final act = await pickOption(context, 'Поделиться объявлением', ['Отправить в Telegram', 'Отправить в WhatsApp', 'Скопировать ссылку'], '');
+  if (act == null || !context.mounted) return;
+  if (act == 'Скопировать ссылку') {
+    await Clipboard.setData(ClipboardData(text: '$text\n$link'));
+    if (context.mounted) toast(context, 'Ссылка скопирована');
+  } else if (act == 'Отправить в Telegram') {
+    await openUrl(context, 'https://t.me/share/url?url=${Uri.encodeComponent(link)}&text=${Uri.encodeComponent(text)}', link);
+  } else {
+    await openUrl(context, 'https://wa.me/?text=${Uri.encodeComponent('$text\n$link')}', link);
+  }
+}
+
+// =====================================================================
+// Подписки на поиск
+// =====================================================================
+
+Future<void> subscribeToSearch(BuildContext context,
+    {required Section section, String? category, String? city, String query = '', int? priceMax}) async {
+  final app = AppScope.of(context);
+  if (app.user == null) {
+    askLogin(context, 'Войдите, чтобы подписаться на новые объявления.');
+    return;
+  }
+  if (app.profile?.verified != true) {
+    final go = await confirmDialog(context, 'Нужен Telegram',
+        'Новые объявления по подписке присылает наш Telegram-бот. Подтвердите Telegram — это займёт полминуты.', 'Подтвердить',
+        danger: false);
+    if (go && context.mounted) push(context, const VerifyScreen());
+    return;
+  }
+  final parts = [
+    tr(sectionNames[section]!),
+    if (category != null) tr(category),
+    tr(city ?? 'Все города'),
+    if (query.trim().isNotEmpty) '«${query.trim()}»',
+    if (priceMax != null) tr('до {n} EGP', {'n': fmt(priceMax)}),
+  ];
+  final yes = await confirmDialog(context, 'Подписаться на поиск?',
+      '${parts.join(' · ')}\n\n${tr('Бот пришлёт новые подходящие объявления, как только они появятся.')}', 'Подписаться',
+      danger: false);
+  if (!yes || !context.mounted) return;
+  try {
+    await app.addSavedSearch(section, category: category, city: city, query: query, priceMax: priceMax);
+    if (context.mounted) toast(context, 'Готово! Новые объявления придут в Telegram.');
+  } catch (e) {
+    if (context.mounted) toast(context, AppState.serverMessage(e, 'Не удалось. Попробуйте ещё раз.'));
+  }
+}
+
+class SavedSearchesScreen extends StatelessWidget {
+  const SavedSearchesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final app = AppScope.of(context);
+    final p = Pal.of(context);
+    final list = app.savedSearches;
+    return Scaffold(
+      body: Column(children: [
+        const SubHeader(title: 'Подписки на поиск'),
+        Expanded(
+          child: list.isEmpty
+              ? const EmptyState(
+                  icon: 'bell',
+                  text: 'Подписок пока нет.\nВ ленте нажмите 🔔 рядом с поиском — бот пришлёт новые подходящие объявления в Telegram.')
+              : ListView(
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + MediaQuery.of(context).padding.bottom),
+                  children: [
+                    for (final x in list) ...[
+                      Box(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(color: p.sel, borderRadius: BorderRadius.circular(12)),
+                            child: Center(child: Ico('bell', size: 20, color: p.accent)),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(
+                                  [tr(sectionNames[x.section]!), if (x.category != null) tr(x.category!)].join(' · '),
+                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: p.text)),
+                              const SizedBox(height: 2),
+                              Text(
+                                  [
+                                    tr(x.city ?? 'Все города'),
+                                    if (x.query.isNotEmpty) '«${x.query}»',
+                                    if (x.priceMax != null) tr('до {n} EGP', {'n': fmt(x.priceMax!)}),
+                                  ].join(' · '),
+                                  style: TextStyle(fontSize: 13, color: p.muted)),
+                            ]),
+                          ),
+                          IconBtn('trash', plain: true, color: p.bad, label: 'Удалить', onTap: () async {
+                            await app.deleteSavedSearch(x.id);
+                            if (context.mounted) toast(context, 'Подписка удалена');
+                          }),
+                        ]),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    if (app.profile?.notifyTg == false)
+                      Text('Уведомления в Telegram выключены в профиле — включите их, чтобы получать подписки.',
+                          style: TextStyle(fontSize: 12.5, color: p.warn)),
+                  ],
+                ),
+        ),
+      ]),
+    );
+  }
+}
+
+// =====================================================================
+// Удаление аккаунта
+// =====================================================================
+
+Future<void> deleteAccountFlow(BuildContext context) async {
+  final app = AppScope.of(context);
+  final yes = await confirmDialog(context, 'Удалить аккаунт?',
+      'Удалятся профиль, все ваши объявления, фото, сообщения и отзывы. Восстановить будет нельзя.', 'Удалить навсегда');
+  if (!yes || !context.mounted) return;
+  final sure = await confirmDialog(context, 'Точно удалить?', 'Это последнее подтверждение.', 'Да, удалить');
+  if (!sure || !context.mounted) return;
+  try {
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    await app.deleteAccount();
+    if (context.mounted) toast(context, 'Аккаунт удалён');
+  } catch (e) {
+    if (context.mounted) toast(context, AppState.serverMessage(e, 'Не удалось удалить аккаунт. Попробуйте позже.'));
+  }
+}
+
+// =====================================================================
+// Новости
+// =====================================================================
+
+const _newsTags = ['Важно', 'Визы', 'Безопасность', 'События', 'Курс', 'Сервис'];
+const _tagHue = {
+  'Визы': 0xFF6366F1,
+  'Курс': 0xFF14B8A6,
+  'События': 0xFFF59E0B,
+  'Важно': 0xFFF43F5E,
+  'Безопасность': 0xFFF97316,
+  'Сервис': 0xFF3B82F6,
+};
+const _tagIcon = {'Визы': 'doc', 'Курс': 'coin', 'События': 'people', 'Важно': 'alert', 'Безопасность': 'shield', 'Сервис': 'pyramid'};
+
+class NewsTab extends StatelessWidget {
+  const NewsTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final app = AppScope.of(context);
+    final p = Pal.of(context);
+    final list = app.news.where((n) => n.published || app.isAdmin).toList();
+    return UnderBar(
+      bar: GlassBar(
+        title: 'Новости',
+        subtitle: 'Важное для своих в Египте',
+        trailing: app.isAdmin ? IconBtn('plus', glass: true, label: 'Добавить новость', onTap: () => editNews(context)) : null,
+      ),
+      onRefresh: app.loadNews,
+      slivers: [
+        if (!app.newsLoaded)
+          const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator())))
+        else if (list.isEmpty)
+          const SliverToBoxAdapter(child: EmptyState(icon: 'news', text: 'Новостей пока нет.'))
+        else
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
+            sliver: SliverList.separated(
+              itemCount: list.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (_, i) {
+                final n = list[i];
+                final hue = Color(_tagHue[n.tag] ?? 0xFF14B8A6);
+                return Box(
+                  padding: const EdgeInsets.all(14),
+                  onTap: () => push(context, NewsDetailScreen(item: n)),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: [hue.withAlpha(p.dark ? 90 : 60), hue.withAlpha(p.dark ? 30 : 22)]),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Center(child: Ico(_tagIcon[n.tag] ?? 'news', size: 22, stroke: 1.9, color: Color.lerp(hue, p.text, .1))),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          Text(n.tag, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color.lerp(hue, p.text, p.dark ? .25 : 0))),
+                          Text('  ·  ${dateText(n.date)}', style: TextStyle(fontSize: 12.5, color: p.muted)),
+                          if (!n.published) Text('  ·  ${tr('черновик')}', style: TextStyle(fontSize: 12.5, color: p.warn)),
+                        ]),
+                        const SizedBox(height: 4),
+                        Text(n.title, style: heading(16, weight: FontWeight.w800, color: p.text)),
+                        const SizedBox(height: 4),
+                        Text(n.body, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: p.text2, height: 1.45)),
+                      ]),
+                    ),
+                  ]),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class NewsDetailScreen extends StatelessWidget {
+  const NewsDetailScreen({super.key, required this.item});
+  final NewsPost item;
+
+  @override
+  Widget build(BuildContext context) {
+    final app = AppScope.of(context);
+    final p = Pal.of(context);
+    return Scaffold(
+      body: Column(children: [
+        SubHeader(
+          title: 'Новости',
+          trailing: app.isAdmin
+              ? IconBtn('edit', label: 'Редактировать', onTap: () async {
+                  await editNews(context, item: item);
+                  if (context.mounted) Navigator.maybePop(context);
+                })
+              : null,
+        ),
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(18, 18, 18, 30 + MediaQuery.of(context).padding.bottom),
+            children: [
+              Text('${tr(item.tag)} · ${dateText(item.date)}', style: TextStyle(fontSize: 13, color: p.muted, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Text(item.title, style: heading(22, weight: FontWeight.w800, color: p.text)),
+              const SizedBox(height: 14),
+              SelectionArea(child: Text(item.body, style: TextStyle(fontSize: 15.5, color: p.body, height: 1.6))),
+            ],
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Админ: добавить или изменить новость.
+Future<void> editNews(BuildContext context, {NewsPost? item}) async {
+  final app = AppScope.of(context);
+  final title = TextEditingController(text: item?.title ?? '');
+  final body = TextEditingController(text: item?.body ?? '');
+  var tag = item?.tag ?? _newsTags.first;
+  var published = item?.published ?? true;
+  final res = await showGlassSheet<String>(
+    context,
+    (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
+      final p = Pal.of(ctx);
+      return Padding(
+        padding: EdgeInsets.fromLTRB(18, 0, 18, 18 + MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom),
+        child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const SheetHandle(),
+            Text(item == null ? 'Новая новость' : 'Изменить новость', style: heading(20, weight: FontWeight.w800, color: p.text)),
+            const SizedBox(height: 12),
+            PickField(label: 'Рубрика', value: tag, options: _newsTags, onChanged: (v) => setSheet(() => tag = v)),
+            const SizedBox(height: 12),
+            Field(label: 'Заголовок', controller: title, hint: 'Коротко и понятно', capitalization: TextCapitalization.sentences),
+            const SizedBox(height: 12),
+            Field(label: 'Текст', controller: body, maxLines: 8, hint: 'Подробности', capitalization: TextCapitalization.sentences),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: Text('Опубликована', style: TextStyle(fontSize: 15, color: p.text))),
+              Switch(value: published, onChanged: (v) => setSheet(() => published = v)),
+            ]),
+            const SizedBox(height: 12),
+            PrimaryButton('Сохранить', onPressed: () => Navigator.pop(ctx, 'save')),
+            if (item != null)
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, 'delete'),
+                style: TextButton.styleFrom(foregroundColor: p.bad),
+                child: const Text('Удалить новость'),
+              ),
+          ]),
+        ),
+      );
+    }),
+  );
+  if (res == null || !context.mounted) return;
+  try {
+    if (res == 'delete') {
+      await app.deleteNews(item!.id);
+    } else {
+      if (title.text.trim().length < 3) {
+        toast(context, 'Заголовок должен быть не короче 3 символов');
+        return;
+      }
+      await app.saveNews(id: item?.id, tag: tag, title: title.text.trim(), body: body.text.trim(), published: published);
+    }
+    if (context.mounted) toast(context, 'Готово');
+  } catch (e) {
+    if (context.mounted) toast(context, AppState.serverMessage(e, 'Не удалось. Попробуйте ещё раз.'));
+  }
+}
+
+// =====================================================================
+// Админ: статистика
+// =====================================================================
+
+class AdminPanel extends StatefulWidget {
+  const AdminPanel({super.key});
+
+  @override
+  State<AdminPanel> createState() => _AdminPanelState();
+}
+
+class _AdminPanelState extends State<AdminPanel> {
+  Future<Map<String, dynamic>>? future;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    future ??= AppScope.of(context).adminStats();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+    const labels = [
+      ['users', 'Пользователей'],
+      ['users_7d', 'Новых за 7 дней'],
+      ['online', 'Сейчас в сети'],
+      ['verified', 'Проверенных'],
+      ['posts_active', 'Объявлений в ленте'],
+      ['posts_pending', 'На проверке'],
+      ['posts_7d', 'Объявлений за 7 дней'],
+      ['messages_24h', 'Сообщений за сутки'],
+      ['views', 'Просмотров всего'],
+      ['deals', 'Сделок'],
+      ['reviews', 'Отзывов'],
+      ['banned', 'Забанено'],
+    ];
+    return FutureBuilder<Map<String, dynamic>>(
+      future: future,
+      builder: (_, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator()));
+        }
+        final d = snap.data ?? {};
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 2.1,
+            children: [
+              for (final l in labels)
+                Box(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Text('${d[l[0]] ?? '—'}', style: heading(22, weight: FontWeight.w800, color: p.text)),
+                    Text(l[1], maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: p.muted)),
+                  ]),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          OutlineBtn('Обновить', icon: 'check', onPressed: () => setState(() => future = AppScope.of(context).adminStats())),
+          const SizedBox(height: 8),
+          PrimaryButton('Добавить новость', icon: 'plus', onPressed: () => editNews(context)),
+          const SizedBox(height: 8),
+          Text('Забанить нарушителя: откройте его профиль → «⋯» → «Забанить нарушителя».',
+              style: TextStyle(fontSize: 12.5, color: p.muted, height: 1.4)),
+        ]);
+      },
     );
   }
 }

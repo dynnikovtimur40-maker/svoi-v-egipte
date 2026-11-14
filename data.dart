@@ -100,10 +100,11 @@ const priceLabels = {
   Section.jobs: 'Зарплата в месяц, EGP',
 };
 
-/// Примерный курс. Позже будет загружаться с сервера.
-const rubPerEgp = 1.65;
-const egpPerUsd = 49.0;
-const egpPerEur = 53.0;
+/// Курс: подгружается с сервера при запуске (функция rates), здесь — запасные значения.
+double rubPerEgp = 1.65;
+double egpPerUsd = 49.0;
+double egpPerEur = 53.0;
+DateTime? ratesUpdated;
 
 const photoBucket = 'post-photos';
 
@@ -194,6 +195,8 @@ class Profile {
     this.lang = 'ru',
     this.tgUsername,
     this.lastSeen,
+    this.banned = false,
+    this.notifyTg = true,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -208,6 +211,8 @@ class Profile {
         lang: (m['lang'] ?? 'ru') as String,
         tgUsername: m['tg_username'] as String?,
         lastSeen: DateTime.tryParse((m['last_seen'] ?? '') as String),
+        banned: (m['banned'] ?? false) as bool,
+        notifyTg: (m['notify_tg'] ?? true) as bool,
         createdAt: DateTime.tryParse((m['created_at'] ?? '') as String),
       );
 
@@ -221,7 +226,47 @@ class Profile {
   final String lang;
   final String? tgUsername;
   final DateTime? lastSeen;
+  final bool banned;
+  final bool notifyTg;
   final DateTime createdAt;
+}
+
+/// Новость из админки.
+class NewsPost {
+  NewsPost({required this.id, required this.tag, required this.title, required this.body, required this.date, this.published = true});
+  factory NewsPost.fromMap(Map m) => NewsPost(
+        id: (m['id'] as num).toInt(),
+        tag: (m['tag'] ?? '') as String,
+        title: (m['title'] ?? '') as String,
+        body: (m['body'] ?? '') as String,
+        published: (m['published'] ?? true) as bool,
+        date: DateTime.tryParse((m['created_at'] ?? '') as String) ?? DateTime.now(),
+      );
+  final int id;
+  final String tag;
+  final String title;
+  final String body;
+  final bool published;
+  final DateTime date;
+}
+
+/// Подписка на поиск: бот пришлёт новые подходящие объявления.
+class SavedSearch {
+  SavedSearch({required this.id, required this.section, this.category, this.city, this.query = '', this.priceMax});
+  factory SavedSearch.fromMap(Map m) => SavedSearch(
+        id: (m['id'] as num).toInt(),
+        section: Section.values.firstWhere((x) => x.name == m['section'], orElse: () => Section.ads),
+        category: m['category'] as String?,
+        city: m['city'] as String?,
+        query: (m['query'] ?? '') as String,
+        priceMax: (m['price_max'] as num?)?.toInt(),
+      );
+  final int id;
+  final Section section;
+  final String? category;
+  final String? city;
+  final String query;
+  final int? priceMax;
 }
 
 class Post {
@@ -499,6 +544,12 @@ class AppState extends ChangeNotifier {
   Set<String> blockedIds = {}; // кого заблокировал я
   Set<String> blockedMe = {}; // кто заблокировал меня
   Map<String, int> myFavCounts = {};
+  List<NewsPost> news = [];
+  bool newsLoaded = false;
+  List<SavedSearch> savedSearches = [];
+  bool hasMore = false;
+  bool loadingMore = false;
+  RealtimeChannel? _inbox;
   Timer? _presence;
   String _device = '';
 
@@ -612,6 +663,7 @@ class AppState extends ChangeNotifier {
             .order('created_at', ascending: false).limit(300);
       }
       posts = rows.map<Post>((m) => Post.fromMap(m)).toList();
+      hasMore = posts.length >= 300;
       // VIP — сверху ленты (порядок внутри групп сохраняется)
       posts = [...posts.where((p) => p.isVip), ...posts.where((p) => !p.isVip)];
       error = null;
@@ -652,11 +704,16 @@ class AppState extends ChangeNotifier {
       myFavCounts = {};
       _presence?.cancel();
       _presence = null;
+      if (_inbox != null) sb.removeChannel(_inbox!);
+      _inbox = null;
+      savedSearches = [];
       notifyListeners();
       return;
     }
     touchOnline();
     _presence ??= Timer.periodic(const Duration(seconds: 60), (_) => touchOnline());
+    _listenInbox();
+    loadSavedSearches();
     await Future.wait([loadProfile(), loadFavorites(), loadMyPosts(), loadThreads(), loadMyVerification(), loadBlocks()]);
     final pl = profile?.lang;
     if (pl != null && pl != lang) {
@@ -738,6 +795,14 @@ class AppState extends ChangeNotifier {
     return sb.storage.from(photoBucket).getPublicUrl(path);
   }
 
+  String? _storagePath(String url) {
+    final marker = '/$photoBucket/';
+    final i = url.indexOf(marker);
+    if (i < 0) return null;
+    final path = Uri.decodeComponent(url.substring(i + marker.length));
+    return user != null && path.startsWith('${user!.id}/') ? path : null;
+  }
+
   /// Скачать своё фото из хранилища (для редактирования).
   Future<Uint8List> downloadPhoto(String url) async {
     final marker = '/$photoBucket/';
@@ -814,7 +879,15 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> deletePost(String id) async {
+    final post = myPosts.where((p) => p.id == id).firstOrNull;
     await sb.from('posts').delete().eq('id', id);
+    // фото удалённого объявления больше не нужны
+    final paths = (post?.photos ?? []).map(_storagePath).whereType<String>().toList();
+    if (paths.isNotEmpty) {
+      try {
+        await sb.storage.from(photoBucket).remove(paths);
+      } catch (_) {}
+    }
     await Future.wait([load(), loadMyPosts()]);
   }
 
@@ -891,6 +964,166 @@ class AppState extends ChangeNotifier {
     } catch (_) {
       return [];
     }
+  }
+
+  // ---------- Мгновенные уведомления о сообщениях ----------
+
+  void _listenInbox() {
+    final u = user;
+    if (u == null || _inbox != null) return;
+    try {
+      _inbox = sb
+          .channel('inbox-${u.id}')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.insert,
+            schema: 'public',
+            table: 'messages',
+            filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'receiver_id', value: u.id),
+            callback: (_) {
+              loadThreads();
+              _onMessage?.call();
+            },
+          )
+          .subscribe();
+    } catch (_) {}
+  }
+
+  /// Открытый чат подписывается сюда, чтобы обновиться сразу при новом сообщении.
+  VoidCallback? _onMessage;
+  void onIncomingMessage(VoidCallback? cb) => _onMessage = cb;
+
+  // ---------- Курс, новости, подписки, подгрузка, поиск ----------
+
+  Future<void> loadRates() async {
+    try {
+      final res = await sb.functions.invoke('rates', method: HttpMethod.get);
+      final d = res.data;
+      if (d is Map && d['rub'] is num) {
+        rubPerEgp = (d['rub'] as num).toDouble();
+        egpPerUsd = (d['egp_per_usd'] as num).toDouble();
+        egpPerEur = (d['egp_per_eur'] as num).toDouble();
+        ratesUpdated = DateTime.tryParse('${d['updated'] ?? ''}');
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> loadNews() async {
+    try {
+      final rows = await sb.from('news').select().order('created_at', ascending: false).limit(50);
+      news = rows.map<NewsPost>((m) => NewsPost.fromMap(m)).toList();
+    } catch (_) {}
+    newsLoaded = true;
+    notifyListeners();
+  }
+
+  Future<void> saveNews({int? id, required String tag, required String title, required String body, bool published = true}) async {
+    final data = {'tag': tag, 'title': title, 'body': body, 'published': published};
+    if (id == null) {
+      await sb.from('news').insert(data);
+    } else {
+      await sb.from('news').update(data).eq('id', id);
+    }
+    await loadNews();
+  }
+
+  Future<void> deleteNews(int id) async {
+    await sb.from('news').delete().eq('id', id);
+    await loadNews();
+  }
+
+  Future<void> loadSavedSearches() async {
+    if (user == null) return;
+    try {
+      final rows = await sb.from('saved_searches').select().order('id', ascending: false);
+      savedSearches = rows.map<SavedSearch>((m) => SavedSearch.fromMap(m)).toList();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> addSavedSearch(Section section, {String? category, String? city, String query = '', int? priceMax}) async {
+    final u = user;
+    if (u == null) throw Exception('Нужно войти');
+    await sb.from('saved_searches').insert({
+      'user_id': u.id,
+      'section': section.name,
+      'category': category,
+      'city': city,
+      'query': query.trim(),
+      'price_max': priceMax,
+    });
+    await loadSavedSearches();
+  }
+
+  Future<void> deleteSavedSearch(int id) async {
+    await sb.from('saved_searches').delete().eq('id', id);
+    await loadSavedSearches();
+  }
+
+  Future<void> setNotifyTg(bool on) async {
+    final u = user;
+    if (u == null) return;
+    await sb.from('profiles').update({'notify_tg': on}).eq('id', u.id);
+    await loadProfile();
+  }
+
+  /// Следующая порция ленты.
+  Future<void> loadMore() async {
+    if (loadingMore || !hasMore) return;
+    loadingMore = true;
+    notifyListeners();
+    try {
+      final rows = await sb.from('posts').select(_postSelect).eq('status', 'active')
+          .order('bumped_at', ascending: false).range(posts.length, posts.length + 299);
+      final more = rows.map<Post>((m) => Post.fromMap(m)).toList();
+      final have = posts.map((p) => p.id).toSet();
+      posts = [...posts, ...more.where((p) => !have.contains(p.id))];
+      hasMore = more.length >= 300;
+    } catch (_) {}
+    loadingMore = false;
+    notifyListeners();
+  }
+
+  /// Поиск по всем объявлениям на сервере (если в ленте загружено не всё).
+  Future<void> searchRemote(String q) async {
+    final s = q.replaceAll(RegExp(r'[%,()*]'), ' ').trim();
+    if (s.length < 2 || !hasMore) return;
+    try {
+      final rows = await sb.from('posts').select(_postSelect).eq('status', 'active')
+          .or('title.ilike.%$s%,description.ilike.%$s%').order('bumped_at', ascending: false).limit(100);
+      final found = rows.map<Post>((m) => Post.fromMap(m)).toList();
+      final have = posts.map((p) => p.id).toSet();
+      final add = found.where((p) => !have.contains(p.id)).toList();
+      if (add.isNotEmpty) {
+        posts = [...posts, ...add];
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  // ---------- Аккаунт и администрирование ----------
+
+  /// Удалить свой аккаунт со всеми объявлениями, сообщениями и фото.
+  Future<void> deleteAccount() async {
+    final u = user;
+    if (u == null) return;
+    try {
+      final files = await sb.storage.from(photoBucket).list(path: u.id);
+      final paths = files.map((f) => '${u.id}/${f.name}').toList();
+      if (paths.isNotEmpty) await sb.storage.from(photoBucket).remove(paths);
+    } catch (_) {}
+    await sb.rpc('delete_my_account');
+    await signOut();
+  }
+
+  Future<void> adminBan(String userId, bool ban) async {
+    await sb.rpc('admin_ban', params: {'p_user': userId, 'p_ban': ban});
+    await load();
+  }
+
+  Future<Map<String, dynamic>> adminStats() async {
+    final r = await sb.rpc('admin_stats');
+    return Map<String, dynamic>.from(r as Map);
   }
 
   Future<void> touchOnline() async {

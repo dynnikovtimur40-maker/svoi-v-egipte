@@ -253,6 +253,8 @@ const ic = <String, String>{
   'calendar': 'M4 6h16v14H4z M4 10h16 M8 3v4 M16 3v4',
   'pyramid': 'M12 3L22 20H2z M12 3l3.5 17',
   'more': 'M5 12h.01 M12 12h.01 M19 12h.01',
+  'share': 'M12 3v12 M7 8l5-5 5 5 M5 13v7h14v-7',
+  'bell': 'M6 16V11a6 6 0 0 1 12 0v5l2 2H4z M10 20a2 2 0 0 0 4 0',
 };
 
 const catIcon = {
@@ -1365,6 +1367,8 @@ class _AuthGateState extends State<AuthGate> {
     final app = AppScope.of(context);
     app.loadSettings();
     app.load();
+    app.loadRates();
+    app.loadNews();
     app.onAuthChanged();
     sub = Supabase.instance.client.auth.onAuthStateChange.listen((_) {
       app.onAuthChanged();
@@ -1656,6 +1660,26 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int tab = 0;
+  static bool _linkHandled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // ссылка вида …/svoi-v-egipte/?post=<id> открывает объявление
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (_linkHandled) return;
+      _linkHandled = true;
+      final id = Uri.base.queryParameters['post'];
+      if (id == null || id.isEmpty || !mounted) return;
+      final post = await AppScope.of(context).fetchPost(id);
+      if (!mounted) return;
+      if (post == null) {
+        toast(context, 'Объявление снято с публикации или удалено.');
+      } else {
+        push(context, PostDetailScreen(post: post));
+      }
+    });
+  }
 
   static const pages = <Widget>[
     ListTab(section: Section.ads),
@@ -2099,6 +2123,31 @@ class _ListTabState extends State<ListTab> {
   String? cat;
   String query = '';
   final filters = Filters();
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void onQuery(String v) {
+    setState(() => query = v);
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 450), () {
+      if (mounted) AppScope.of(context).searchRemote(v);
+    });
+  }
+
+  Future<void> subscribe() async {
+    final app = AppScope.of(context);
+    await subscribeToSearch(context,
+        section: widget.section,
+        category: cat,
+        city: app.city == cities.first ? null : app.city,
+        query: query,
+        priceMax: filters.priceTo);
+  }
 
   Future<void> pickCity() async {
     final app = AppScope.of(context);
@@ -2268,7 +2317,7 @@ class _ListTabState extends State<ListTab> {
             const SizedBox(width: 10),
             Expanded(
               child: TextField(
-                onChanged: (v) => setState(() => query = v),
+                onChanged: onQuery,
                 style: TextStyle(fontSize: 15, color: p.text),
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration.collapsed(
@@ -2278,6 +2327,24 @@ class _ListTabState extends State<ListTab> {
               ),
             ),
           ]),
+        ),
+      ),
+      const SizedBox(width: 8),
+      Semantics(
+        button: true,
+        label: tr('Подписаться на поиск'),
+        child: GestureDetector(
+          onTap: subscribe,
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: p.input.withAlpha(p.dark ? 220 : 255),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: p.line),
+            ),
+            child: Center(child: Ico('bell', size: 20, color: p.text)),
+          ),
         ),
       ),
       const SizedBox(width: 8),
@@ -2376,7 +2443,7 @@ class _ListTabState extends State<ListTab> {
         )
       else
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 120),
+          padding: EdgeInsets.fromLTRB(16, 10, 16, app.hasMore && query.trim().isEmpty ? 16 : 120),
           sliver: SliverGrid(
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
               maxCrossAxisExtent: 230,
@@ -2385,6 +2452,14 @@ class _ListTabState extends State<ListTab> {
               childAspectRatio: .64,
             ),
             delegate: SliverChildBuilderDelegate((_, i) => PostTile(post: items[i]), childCount: items.length),
+          ),
+        ),
+      if (app.hasMore && query.trim().isEmpty)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+            child: OutlineBtn(app.loadingMore ? 'Загружаем…' : 'Показать ещё объявления',
+                icon: 'down', onPressed: app.loadingMore ? null : app.loadMore),
           ),
         ),
     ];
@@ -2917,6 +2992,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           child: Row(children: [
             IconBtn('back', glass: true, color: Colors.white, label: 'Назад', onTap: () => Navigator.maybePop(context)),
             const Spacer(),
+            IconBtn('share', glass: true, color: Colors.white, label: 'Поделиться', onTap: () => sharePost(context, post)),
+            const SizedBox(width: 8),
             IconBtn('heart',
                 glass: true,
                 label: 'В избранное',
@@ -3352,71 +3429,6 @@ class _AddPostScreenState extends State<AddPostScreen> {
 // Новости
 // =====================================================================
 
-class NewsTab extends StatelessWidget {
-  const NewsTab({super.key});
-
-  static const tagHue = {
-    'Визы': 0xFF6366F1,
-    'Курс': 0xFF14B8A6,
-    'События': 0xFFF59E0B,
-    'Важно': 0xFFF43F5E,
-  };
-  static const tagIcons = {'Визы': 'doc', 'Курс': 'coin', 'События': 'people', 'Важно': 'alert'};
-
-  @override
-  Widget build(BuildContext context) {
-    final p = Pal.of(context);
-    return UnderBar(
-      bar: const GlassBar(title: 'Новости', subtitle: 'Важное для русскоязычных в Египте'),
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
-          sliver: SliverList.separated(
-            itemCount: demoNews.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (_, i) {
-              final n = demoNews[i];
-              final hue = Color(tagHue[n.tag] ?? 0xFF14B8A6);
-              return Box(
-                padding: const EdgeInsets.all(14),
-                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [hue.withAlpha(p.dark ? 90 : 60), hue.withAlpha(p.dark ? 30 : 22)],
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Center(
-                        child: Ico(tagIcons[n.tag] ?? 'news', size: 22, stroke: 1.9, color: Color.lerp(hue, p.text, .1))),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [
-                        Text(n.tag, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color.lerp(hue, p.text, p.dark ? .25 : 0))),
-                        Text('  ·  ${n.date}', style: TextStyle(fontSize: 12.5, color: p.muted)),
-                      ]),
-                      const SizedBox(height: 4),
-                      Text(n.title, style: heading(16, weight: FontWeight.w800, color: p.text)),
-                      const SizedBox(height: 4),
-                      Text(n.summary, style: TextStyle(fontSize: 14, color: p.text2, height: 1.45)),
-                    ]),
-                  ),
-                ]),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 // =====================================================================
 // Полезное: конвертер и справочник
 // =====================================================================
@@ -3594,7 +3606,8 @@ class _ConverterCardState extends State<ConverterCard> {
           cell('Евро', '${(egp / egpPerEur).toStringAsFixed(2)} €'),
         ]),
         const SizedBox(height: 8),
-        Text('Примерный курс, для ориентира', style: TextStyle(fontSize: 13, color: p.muted)),
+        Text(ratesUpdated == null ? tr('Примерный курс, для ориентира') : tr('Курс обновлён: {d}', {'d': dateText(ratesUpdated!)}),
+            style: TextStyle(fontSize: 13, color: p.muted)),
       ]),
     );
   }
@@ -3761,6 +3774,15 @@ class ProfileScreen extends StatelessWidget {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: EdgeInsets.fromLTRB(16, 16, 16, 28 + MediaQuery.of(context).padding.bottom),
                 children: [
+                  if (prof?.banned == true) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(color: p.warnbg, borderRadius: BorderRadius.circular(14)),
+                      child: Text('Ваш аккаунт заблокирован за нарушение правил. Публиковать объявления и писать сообщения нельзя.',
+                          style: TextStyle(fontSize: 13, color: p.bad, height: 1.4)),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   Container(
                     padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
                     decoration: BoxDecoration(
@@ -3917,6 +3939,29 @@ class ProfileScreen extends StatelessWidget {
                     MenuRow(icon: 'globe', label: 'Язык', right: langName(app.lang), onTap: () => showLanguageSheet(context)),
                     MenuRow(icon: 'star', label: 'Мои отзывы и рейтинг', onTap: myReviews),
                     MenuRow(
+                        icon: 'bell',
+                        label: 'Подписки на поиск',
+                        right: app.savedSearches.isEmpty ? null : '${app.savedSearches.length}',
+                        onTap: () => push(context, const SavedSearchesScreen())),
+                    MenuRow(
+                        icon: 'send',
+                        label: 'Уведомления в Telegram',
+                        right: prof?.verified != true
+                            ? tr('нужна проверка')
+                            : (prof?.notifyTg ?? true)
+                                ? tr('Вкл.')
+                                : tr('Выкл.'),
+                        onTap: () async {
+                          if (prof?.verified != true) {
+                            push(context, const VerifyScreen());
+                            return;
+                          }
+                          await app.setNotifyTg(!(prof?.notifyTg ?? true));
+                          if (context.mounted) {
+                            toast(context, (app.profile?.notifyTg ?? true) ? 'Уведомления включены' : 'Уведомления выключены');
+                          }
+                        }),
+                    MenuRow(
                         icon: 'lock',
                         label: 'Заблокированные',
                         right: app.blockedIds.isEmpty ? null : '${app.blockedIds.length}',
@@ -3929,6 +3974,12 @@ class ProfileScreen extends StatelessWidget {
                   ]),
                   const SizedBox(height: 10),
                   MenuGroup(rows: [
+                    MenuRow(
+                      icon: 'trash',
+                      label: 'Удалить аккаунт',
+                      danger: true,
+                      onTap: () => deleteAccountFlow(context),
+                    ),
                     MenuRow(
                       icon: 'logout',
                       label: 'Выйти из аккаунта',
@@ -4518,6 +4569,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool started = false;
   Profile? other;
   int ticks = 0;
+  AppState? appRef;
 
   @override
   void didChangeDependencies() {
@@ -4527,10 +4579,13 @@ class _ChatScreenState extends State<ChatScreen> {
     refresh();
     loadDeals();
     loadOther();
-    AppScope.of(context).loadBlocks();
-    timer = Timer.periodic(const Duration(seconds: 4), (_) {
+    appRef = AppScope.of(context);
+    appRef!.loadBlocks();
+    // новые сообщения приходят мгновенно; таймер — запасной вариант
+    AppScope.of(context).onIncomingMessage(refresh);
+    timer = Timer.periodic(const Duration(seconds: 8), (_) {
       refresh();
-      if (++ticks % 8 == 0) loadOther(); // статус «в сети» — раз в ~30 секунд
+      if (++ticks % 4 == 0) loadOther(); // статус «в сети» — раз в ~30 секунд
     });
   }
 
@@ -4628,6 +4683,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     timer?.cancel();
+    appRef?.onIncomingMessage(null);
     draft.dispose();
     super.dispose();
   }
@@ -5483,7 +5539,9 @@ class _ModerationScreenState extends State<ModerationScreen> {
   Widget build(BuildContext context) {
     final p = Pal.of(context);
     final list = <Widget>[];
-    if (tab == 2) {
+    if (tab == 3) {
+      list.add(const AdminPanel());
+    } else if (tab == 2) {
       list.add(const VerificationsPanel());
     } else if (tab == 0) {
       if (pending.isEmpty) {
@@ -5561,8 +5619,8 @@ class _ModerationScreenState extends State<ModerationScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Segments<int>(
-            values: const [0, 1, 2],
-            labels: ['${tr('На проверке')} (${pending.length})', '${tr('Жалобы')} (${reports.length})', tr('Люди')],
+            values: const [0, 1, 2, 3],
+            labels: ['${tr('Проверка')} (${pending.length})', '${tr('Жалобы')} (${reports.length})', tr('Люди'), tr('Ещё')],
             selected: tab,
             onChanged: (v) => setState(() => tab = v),
           ),

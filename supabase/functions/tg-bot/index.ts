@@ -136,6 +136,92 @@ async function notifyReport(reportId: number) {
   });
 }
 
+// ---------- Уведомления пользователям (по их Telegram из проверки) ----------
+
+const SITE = "https://dynnikovtimur40-maker.github.io/svoi-v-egipte/";
+const U: Record<string, Record<string, string>> = {
+  msg: {
+    ru: "💬 Новое сообщение от {n}{p}:\n\n{t}",
+    en: "💬 New message from {n}{p}:\n\n{t}",
+    uk: "💬 Нове повідомлення від {n}{p}:\n\n{t}",
+    ar: "💬 رسالة جديدة من {n}{p}:\n\n{t}",
+  },
+  about: { ru: " по объявлению «{x}»", en: " about “{x}”", uk: " щодо оголошення «{x}»", ar: " بخصوص «{x}»" },
+  photo: { ru: "📷 Фото", en: "📷 Photo", uk: "📷 Фото", ar: "📷 صورة" },
+  match: {
+    ru: "🔔 Новое объявление по вашей подписке:\n\n{t}\n{pr} · {c}",
+    en: "🔔 New ad matching your saved search:\n\n{t}\n{pr} · {c}",
+    uk: "🔔 Нове оголошення за вашою підпискою:\n\n{t}\n{pr} · {c}",
+    ar: "🔔 إعلان جديد يطابق بحثك المحفوظ:\n\n{t}\n{pr} · {c}",
+  },
+  open: { ru: "Открыть", en: "Open", uk: "Відкрити", ar: "فتح" },
+  stop: {
+    ru: "Отключить уведомления: Профиль → «Уведомления в Telegram».",
+    en: "Turn off: Profile → “Telegram notifications”.",
+    uk: "Вимкнути: Профіль → «Сповіщення в Telegram».",
+    ar: "لإيقاف الإشعارات: الملف الشخصي ← «إشعارات تيليجرام».",
+  },
+};
+function u(key: string, l: string, vars: Record<string, string> = {}) {
+  const ll = l === "uk" || l === "ar" || l === "ru" ? l : "en";
+  let s = U[key][ll] ?? U[key].en;
+  for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, v);
+  return s;
+}
+
+async function notifyMessage(messageId: number) {
+  const base = db();
+  const { data: m } = await base.from("messages").select("id, sender_id, receiver_id, post_id, text, image_url").eq("id", messageId).maybeSingle();
+  if (!m) return;
+  const { data: rcv } = await base.from("profiles").select("tg_id, notify_tg, lang, last_seen, banned").eq("id", m.receiver_id).maybeSingle();
+  if (!rcv?.tg_id || !rcv.notify_tg || rcv.banned) return;
+  // человек сейчас в приложении — не беспокоим
+  if (rcv.last_seen && Date.now() - new Date(rcv.last_seen).getTime() < 60 * 1000) return;
+  if (await isTestUser(m.receiver_id)) return;
+  const { data: snd } = await base.from("profiles").select("name").eq("id", m.sender_id).maybeSingle();
+  let about = "";
+  if (m.post_id) {
+    const { data: p } = await base.from("posts").select("title").eq("id", m.post_id).maybeSingle();
+    if (p?.title) about = u("about", rcv.lang, { x: String(p.title).slice(0, 60) });
+  }
+  const body = m.text ? String(m.text).slice(0, 300) : u("photo", rcv.lang);
+  await tg("sendMessage", {
+    chat_id: rcv.tg_id,
+    text: u("msg", rcv.lang, { n: snd?.name || "—", p: about, t: body }) + "\n\n" + u("stop", rcv.lang),
+    reply_markup: { inline_keyboard: [[{ text: u("open", rcv.lang), url: SITE }]] },
+  });
+}
+
+async function notifyMatch(postId: string) {
+  const base = db();
+  const { data: p } = await base.from("posts").select("id, user_id, section, category, city, title, description, price_egp, status").eq("id", postId).maybeSingle();
+  if (!p || p.status !== "active") return;
+  if (await isTestUser(p.user_id)) return;
+  const { data: subs } = await base.from("saved_searches").select("user_id, category, city, query, price_max")
+    .eq("section", p.section).neq("user_id", p.user_id).limit(1000);
+  const text = `${p.title} ${p.description ?? ""}`.toLowerCase();
+  const users = new Set<string>();
+  for (const s of subs ?? []) {
+    if (s.category && s.category !== p.category) continue;
+    if (s.city && s.city !== p.city) continue;
+    if (s.price_max != null && (p.price_egp == null || p.price_egp > s.price_max)) continue;
+    if (s.query && !String(s.query).toLowerCase().split(/\s+/).every((w: string) => !w || text.includes(w))) continue;
+    users.add(s.user_id);
+  }
+  if (!users.size) return;
+  const { data: profs } = await base.from("profiles").select("id, tg_id, notify_tg, lang, banned").in("id", [...users].slice(0, 200));
+  const link = `${SITE}?post=${p.id}`;
+  for (const r of profs ?? []) {
+    if (!r.tg_id || !r.notify_tg || r.banned) continue;
+    const price = p.price_egp == null ? "—" : `${p.price_egp} EGP`;
+    await tg("sendMessage", {
+      chat_id: r.tg_id,
+      text: u("match", r.lang, { t: String(p.title), pr: price, c: String(p.city) }) + "\n\n" + u("stop", r.lang),
+      reply_markup: { inline_keyboard: [[{ text: u("open", r.lang), url: link }]] },
+    });
+  }
+}
+
 // ---------- Проверка профиля ----------
 
 async function sendCode(chat: number, from: Record<string, unknown>, v: Record<string, unknown>) {
@@ -176,6 +262,8 @@ Deno.serve(async (req) => {
       const b = await req.json().catch(() => ({}));
       if (notify === "post" && b.post_id) await notifyPost(String(b.post_id));
       if (notify === "report" && b.report_id) await notifyReport(Number(b.report_id));
+      if (notify === "message" && b.message_id) await notifyMessage(Number(b.message_id));
+      if (notify === "match" && b.post_id) await notifyMatch(String(b.post_id));
     } catch (e) {
       console.error("notify", e);
     }
