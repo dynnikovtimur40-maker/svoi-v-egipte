@@ -170,12 +170,26 @@ const sectionHue = {
 Color withAlpha(int argb, double a) =>
     Color(((a * 255).round().clamp(0, 255) << 24) | (argb & 0xFFFFFF));
 
-TextStyle heading(double size, {FontWeight weight = FontWeight.w700, Color? color, double height = 1.25}) =>
-    appLang == 'ar'
-        ? GoogleFonts.cairo(fontSize: size, fontWeight: weight, color: color, height: height)
-        : GoogleFonts.manrope(fontSize: size, fontWeight: weight, color: color, height: height, letterSpacing: -.2);
+final _headingBase = <String, TextStyle>{};
 
-ThemeData buildTheme(Brightness b, Color primary) {
+/// Заголовочный шрифт. Базовый стиль на каждую толщину создаётся один раз —
+/// GoogleFonts при каждом вызове заново ищет шрифт, это заметно тормозит прокрутку.
+TextStyle heading(double size, {FontWeight weight = FontWeight.w700, Color? color, double height = 1.25}) {
+  final ar = appLang == 'ar';
+  final base = _headingBase['$ar${weight.value}'] ??= ar
+      ? GoogleFonts.cairo(fontWeight: weight)
+      : GoogleFonts.manrope(fontWeight: weight, letterSpacing: -.2);
+  return base.copyWith(fontSize: size, color: color, height: height);
+}
+
+final _themeCache = <String, ThemeData>{};
+
+/// Тема кэшируется: раньше она пересобиралась при каждом обновлении данных,
+/// и из-за этого перерисовывалось всё приложение.
+ThemeData buildTheme(Brightness b, Color primary) =>
+    _themeCache['${b.name}|${primary.toARGB32()}|$appLang'] ??= _buildTheme(b, primary);
+
+ThemeData _buildTheme(Brightness b, Color primary) {
   final p = Pal.make(b == Brightness.dark, primary);
   final scheme = ColorScheme.fromSeed(seedColor: primary, brightness: b).copyWith(
       primary: primary, onPrimary: p.onPrimary, surface: p.card, onSurface: p.text, error: p.bad);
