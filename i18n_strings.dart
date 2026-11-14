@@ -776,4 +776,8 @@ const Map<String, List<String>> kTr = {
   'Код из письма': ['Code from the email', 'Код із листа', 'الرمز من الرسالة', 'Code aus der E-Mail'],
   'Подтвердить почту': ['Confirm email', 'Підтвердити пошту', 'تأكيد البريد', 'E-Mail bestätigen'],
   'Уже подтвердил — войти': ['Already confirmed — sign in', 'Вже підтвердив — увійти', 'أكدت بالفعل — تسجيل الدخول', 'Bereits bestätigt — anmelden'],
+  'Новый код можно запросить через минуту. Проверьте «Спам» и «Промоакции».': ['You can request a new code in a minute. Check Spam and Promotions.', 'Новий код можна запросити за хвилину. Перевірте «Спам» і «Промоакції».', 'يمكنك طلب رمز جديد بعد دقيقة. تحقق من البريد العشوائي والعروض.', 'Neuen Code in einer Minute anfordern. Spam und Werbung prüfen.'],
+  'Почта ещё не подтверждена. Мы отправили новый код на {e} — введите его ниже.': ['Email not confirmed yet. We sent a new code to {e} — enter it below.', 'Пошту ще не підтверджено. Ми надіслали новий код на {e} — введіть його нижче.', 'لم يتم تأكيد البريد بعد. أرسلنا رمزًا جديدًا إلى {e} — أدخله أدناه.', 'E-Mail noch nicht bestätigt. Neuer Code an {e} gesendet — unten eingeben.'],
+  'Новый код отправлен на {e}. Проверьте также «Спам» и «Промоакции».': ['New code sent to {e}. Also check Spam and Promotions.', 'Новий код надіслано на {e}. Перевірте також «Спам» і «Промоакції».', 'تم إرسال رمز جديد إلى {e}. تحقق أيضًا من البريد العشوائي والعروض.', 'Neuer Code an {e} gesendet. Auch Spam und Werbung prüfen.'],
+  'Отправить ещё раз через {n} с': ['Resend in {n} s', 'Надіслати ще раз через {n} с', 'إعادة الإرسال بعد {n} ث', 'Erneut senden in {n} s'],
 };

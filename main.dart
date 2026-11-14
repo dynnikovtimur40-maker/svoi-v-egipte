@@ -1492,9 +1492,22 @@ class _AuthScreenState extends State<AuthScreen> {
   final email = TextEditingController();
   final pass = TextEditingController();
   final code = TextEditingController();
+  int cooldown = 0;
+  Timer? _cd;
+
+  void startCooldown() {
+    _cd?.cancel();
+    setState(() => cooldown = 60);
+    _cd = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return t.cancel();
+      setState(() => cooldown--);
+      if (cooldown <= 0) t.cancel();
+    });
+  }
 
   @override
   void dispose() {
+    _cd?.cancel();
     name.dispose();
     email.dispose();
     pass.dispose();
@@ -1513,6 +1526,7 @@ class _AuthScreenState extends State<AuthScreen> {
     if (l.contains('password should be')) return 'Пароль должен быть не короче 6 символов';
     if (l.contains('invalid') && l.contains('email')) return 'Проверьте адрес почты';
     if (l.contains('rate limit')) return 'Слишком много попыток, подождите минуту';
+    if (l.contains('security purposes') || l.contains('after')) return 'Новый код можно запросить через минуту. Проверьте «Спам» и «Промоакции».';
     return m;
   }
 
@@ -1547,14 +1561,30 @@ class _AuthScreenState extends State<AuthScreen> {
             needConfirm = true;
           });
           say(tr('Мы отправили код на {e}. Введите 6 цифр из письма ниже. Не видите письмо — проверьте «Спам» и «Промоакции».', {'e': e}), ok: true);
+          startCooldown();
         }
       } else {
         await auth.signInWithPassword(email: e, password: p);
       }
     } on AuthException catch (err) {
       if (mounted) {
-        if (err.message.toLowerCase().contains('not confirmed')) setState(() => needConfirm = true);
-        say(translate(err.message));
+        if (err.message.toLowerCase().contains('not confirmed')) {
+          // почта не подтверждена — сразу отправляем новый код
+          setState(() => needConfirm = true);
+          if (cooldown <= 0) {
+            try {
+              await auth.resend(type: OtpType.signup, email: e, emailRedirectTo: siteUrl);
+              startCooldown();
+              say(tr('Почта ещё не подтверждена. Мы отправили новый код на {e} — введите его ниже.', {'e': e}), ok: true);
+            } catch (_) {
+              say(translate(err.message));
+            }
+          } else {
+            say(translate(err.message));
+          }
+        } else {
+          say(translate(err.message));
+        }
       }
     } catch (_) {
       if (mounted) say('Нет связи с сервером, попробуйте ещё раз');
@@ -1607,7 +1637,10 @@ class _AuthScreenState extends State<AuthScreen> {
     }
     try {
       await Supabase.instance.client.auth.resend(type: OtpType.signup, email: e, emailRedirectTo: siteUrl);
-      if (mounted) say(tr('Письмо отправлено повторно на {e}. Проверьте также папку «Спам».', {'e': e}), ok: true);
+      if (mounted) {
+        startCooldown();
+        say(tr('Новый код отправлен на {e}. Проверьте также «Спам» и «Промоакции».', {'e': e}), ok: true);
+      }
     } on AuthException catch (err) {
       if (mounted) say(translate(err.message));
     } catch (_) {
@@ -1733,9 +1766,11 @@ class _AuthScreenState extends State<AuthScreen> {
                         Align(
                           alignment: Alignment.centerLeft,
                           child: TextButton(
-                            onPressed: resend,
+                            onPressed: cooldown > 0 ? null : resend,
                             style: TextButton.styleFrom(foregroundColor: p.accent),
-                            child: const Text('Отправить письмо ещё раз', style: TextStyle(fontWeight: FontWeight.w600)),
+                            child: Text(
+                                cooldown > 0 ? tr('Отправить ещё раз через {n} с', {'n': cooldown}) : tr('Отправить письмо ещё раз'),
+                                style: const TextStyle(fontWeight: FontWeight.w600)),
                           ),
                         ),
                       ],
