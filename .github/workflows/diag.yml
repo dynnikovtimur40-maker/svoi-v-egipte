@@ -25,6 +25,6 @@ jobs:
           now=$(date -u +%Y-%m-%dT%H:%M:%SZ); from=$(date -u -d '-14 hours' +%Y-%m-%dT%H:%M:%SZ)
           for SQL in "select datetime(timestamp) as t, event_message from function_edge_logs where event_message like '%tg-bot%' order by timestamp desc limit 12" "select datetime(timestamp) as t, event_message from function_logs order by timestamp desc limit 12"; do
             enc=$(python3 -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))' "$SQL")
-            curl -s -H "Authorization: Bearer $SB" "https://api.supabase.com/v1/projects/pjjeypdxwnbtyqabhroi/analytics/endpoints/logs.all?sql=$enc&iso_timestamp_start=$from&iso_timestamp_end=$now" > l.json || true
+            curl -s -H "Authorization: Bearer $SB" "https://api.supabase.com/v1/projects/pjjeypdxwnbtyqabhroi/analytics/endpoints/logs?sql=$enc&iso_timestamp_start=$from&iso_timestamp_end=$now" > l.json || true
             echo "::notice title=logs::$(head -c 3500 l.json | tr '\n' ' ')"
           done
