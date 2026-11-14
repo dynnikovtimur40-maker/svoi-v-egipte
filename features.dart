@@ -1,6 +1,5 @@
 // Этап 6: язык, проверка профиля, продвижение, редактор фото, путеводитель.
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart' hide Text;
@@ -2214,10 +2213,9 @@ class NewsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
-    final p = Pal.of(context);
     // автоматические новости — на языке пользователя (русский для ru/uk, английский для остальных)
     final group = (app.lang == 'ru' || app.lang == 'uk') ? 'ru' : 'en';
-    final list = app.news.where((n) => (n.published || app.isAdmin) && (n.lang == null || n.lang == group)).toList();
+    final list = app.news.where((n) => (n.published || app.isAdmin) && (n.lang ?? 'ru') == group).toList();
     return UnderBar(
       bar: GlassBar(
         title: 'Новости',

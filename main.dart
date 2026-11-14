@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart' hide Text;
@@ -3496,7 +3495,6 @@ class _AddPostScreenState extends State<AddPostScreen> {
 
   Future<void> remove() async {
     final app = AppScope.of(context);
-    final p = Pal.of(context);
     final yes = await confirmDialog(context, 'Удалить объявление?', 'Его нельзя будет восстановить.', 'Удалить');
     if (!yes || !mounted) return;
     try {

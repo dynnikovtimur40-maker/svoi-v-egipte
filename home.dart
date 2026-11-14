@@ -41,7 +41,7 @@ class HomeTab extends StatelessWidget {
     final wc = _weatherCity(city);
 
     final group = (app.lang == 'ru' || app.lang == 'uk') ? 'ru' : 'en';
-    final news = app.news.where((n) => n.published && (n.lang == null || n.lang == group)).take(4).toList();
+    final news = app.news.where((n) => n.published && (n.lang ?? 'ru') == group).take(4).toList();
     final fresh = app.posts.where((x) => app.city == cities.first || x.city == app.city).take(4).toList();
 
     // [иконка, название, цвета градиента, действие]
