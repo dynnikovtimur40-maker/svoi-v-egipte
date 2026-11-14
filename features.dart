@@ -1061,7 +1061,22 @@ class ContactButtons extends StatelessWidget {
       if (hasPhone) btn('WhatsApp', 'phone', const Color(0xFF22C55E), Colors.white, 'wa'),
       if (hasPhone && hasTg) const SizedBox(width: 8),
       if (hasTg) btn('Telegram', 'send', const Color(0xFF229ED9), Colors.white, 'tg'),
-      if (hasPhone) ...[const SizedBox(width: 8), btn('Позвонить', 'phoneCall', p.soft, p.text, 'call')],
+      if (hasPhone) ...[
+        const SizedBox(width: 8),
+        Semantics(
+          button: true,
+          label: tr('Позвонить'),
+          child: Material(
+            color: p.soft,
+            borderRadius: BorderRadius.circular(14),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => openContact(context, 'call', contact, postId: postId),
+              child: SizedBox(width: 52, height: 46, child: Center(child: Ico('phoneCall', size: 20, color: p.text))),
+            ),
+          ),
+        ),
+      ],
     ]);
   }
 }

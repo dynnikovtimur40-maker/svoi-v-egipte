@@ -252,6 +252,7 @@ const ic = <String, String>{
   'image': 'M3 5h18v14H3z M3 16l5-5 4 4 3-3 6 6 M15.5 9.5h.01',
   'calendar': 'M4 6h16v14H4z M4 10h16 M8 3v4 M16 3v4',
   'pyramid': 'M12 3L22 20H2z M12 3l3.5 17',
+  'more': 'M5 12h.01 M12 12h.01 M19 12h.01',
 };
 
 const catIcon = {
@@ -1170,7 +1171,7 @@ class IconBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = Pal.of(context);
-    final ico = Center(child: Ico(icon, size: size, color: color ?? p.text, stroke: 2, fill: fill));
+    final ico = Center(child: Ico(icon, size: size, color: color ?? p.text, stroke: icon == 'more' ? 3.6 : 2, fill: fill));
     Widget body;
     if (plain) {
       body = SizedBox(width: box, height: box, child: ico);
@@ -4713,7 +4714,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 ]),
               ),
             ),
-            IconBtn('menu', plain: true, label: 'Ещё', onTap: () async {
+            IconBtn('more', plain: true, label: 'Ещё', onTap: () async {
               await showUserMenu(context, userId: widget.otherId, name: widget.otherName);
               if (mounted) setState(() {});
             }),
@@ -5214,7 +5215,7 @@ class _SellerScreenState extends State<SellerScreen> {
           title: self ? 'Мой профиль' : 'Профиль продавца',
           trailing: self || app.user == null
               ? null
-              : IconBtn('menu', label: 'Ещё', onTap: () async {
+              : IconBtn('more', label: 'Ещё', onTap: () async {
                   await showUserMenu(context, userId: widget.userId, name: name);
                   if (mounted) setState(() {});
                 }),
