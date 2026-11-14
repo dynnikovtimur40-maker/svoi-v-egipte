@@ -271,6 +271,7 @@ const catIcon = {
   'Переводчики': 'chat',
   'Фото и видео': 'camera',
   'Вакансии': 'bag',
+  'Подработка': 'coin',
   'Резюме': 'doc',
   'Удалёнка': 'laptop',
   'Туризм': 'sun',
@@ -2197,7 +2198,14 @@ class _ListTabState extends State<ListTab> {
               child: Row(children: [
                 Ico('shield', size: 20, color: p.ok),
                 const SizedBox(width: 10),
-                Expanded(child: Text('Только проверенные', style: TextStyle(fontSize: 15, color: p.text))),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Только проверенные продавцы', style: TextStyle(fontSize: 15, color: p.text)),
+                    const SizedBox(height: 2),
+                    Text('Объявления проходят модерацию всегда. Этот фильтр оставляет авторов, подтвердивших Telegram.',
+                        style: TextStyle(fontSize: 12, color: p.muted, height: 1.35)),
+                  ]),
+                ),
                 Toggle(value: tmp.verifiedOnly),
               ]),
             ),
@@ -2618,6 +2626,32 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   Post get post => widget.post;
 
+  @override
+  void initState() {
+    super.initState();
+    // просмотр считается раз в сутки от человека; свои не считаются
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) AppScope.of(context).registerEvent(post.id, 'view');
+    });
+  }
+
+  Future<void> reportPost() async {
+    final app = AppScope.of(context);
+    if (app.user == null) {
+      askLogin(context, 'Войдите, чтобы отправить жалобу модератору.');
+      return;
+    }
+    final reason = await pickOption(context, 'Что не так с объявлением?', reportReasons, '');
+    if (reason == null || !mounted) return;
+    final r = await app.report(postId: post.id, reason: reason);
+    if (!mounted) return;
+    toast(context, r == 'ok'
+        ? 'Спасибо! Модератор проверит объявление.'
+        : r == 'dup'
+            ? 'Вы уже жаловались на это объявление.'
+            : 'Не удалось отправить. Проверьте интернет.');
+  }
+
   void contact(String kind) {
     final c = post.contact.trim();
     final d = contactDigits(c);
@@ -2630,8 +2664,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         toast(context, tr('Номер WhatsApp не указан. Контакт скопирован: {c}', {'c': c}));
         return;
       }
+      AppScope.of(context).registerEvent(post.id, 'contact');
       openUrl(context, 'https://wa.me/$d', c);
     } else if (kind == 'tg') {
+      AppScope.of(context).registerEvent(post.id, 'contact');
       if (tg != null) {
         openUrl(context, 'https://t.me/$tg', c);
       } else if (hasPhone) {
@@ -2646,6 +2682,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         toast(context, tr('Телефон не указан. Контакт скопирован: {c}', {'c': c}));
         return;
       }
+      AppScope.of(context).registerEvent(post.id, 'contact');
       openUrl(context, 'tel:$plus$d', c);
     }
   }
@@ -2762,13 +2799,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               if (changed == true && context.mounted) Navigator.pop(context);
             })
           : Row(children: [
-              round('WhatsApp', const Color(0xFF22C55E), Colors.white, 'phone', () => contact('wa')),
-              const SizedBox(width: 8),
-              round('Telegram', const Color(0xFF229ED9), Colors.white, 'send', () => contact('tg')),
-              const SizedBox(width: 8),
               round('Позвонить', p.soft, p.text, 'phoneCall', () => contact('call')),
               const SizedBox(width: 8),
-              Expanded(child: PrimaryButton('Написать', icon: 'chat', onPressed: openChat)),
+              Expanded(child: PrimaryButton('Написать в чат', icon: 'chat', onPressed: openChat)),
             ]),
     );
 
@@ -2804,6 +2837,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     chip('pin', post.city),
                     chip(catIcon[post.category] ?? 'tag', post.category),
                     chip('calendar', dateText(post.date)),
+                    chip('eye', tr('{n} просм.', {'n': post.views})),
                     if (post.verified) const VerifiedPill(big: true),
                   ]),
                   const SizedBox(height: 18),
@@ -2832,9 +2866,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           const SizedBox(height: 2),
                           Text(rating != null ? '★ ${rating.toStringAsFixed(1)}$since' : '${tr('Новый продавец')}$since',
                               style: TextStyle(fontSize: 13, color: p.muted)),
+                          if (post.authorLastSeen != null)
+                            Text(onlineText(post.authorLastSeen),
+                                style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: isOnline(post.authorLastSeen) ? p.ok : p.muted,
+                                    fontWeight: isOnline(post.authorLastSeen) ? FontWeight.w600 : FontWeight.w400)),
                         ]),
                       ),
-                      Text('Профиль', style: TextStyle(fontSize: 13, color: p.accent, fontWeight: FontWeight.w600)),
+                      Text('Контакты', style: TextStyle(fontSize: 13, color: p.accent, fontWeight: FontWeight.w600)),
                       const SizedBox(width: 2),
                       Ico('chevron', size: 16, color: p.accent),
                     ]),
@@ -2859,14 +2899,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   ] else
                     Center(
                       child: TextButton(
-                        onPressed: () {
-                          if (app.user == null) {
-                            askLogin(context, 'Войдите, чтобы отправить жалобу модератору.');
-                            return;
-                          }
-                          app.report(post.id);
-                          toast(context, 'Спасибо! Модератор проверит объявление.');
-                        },
+                        onPressed: reportPost,
                         style: TextButton.styleFrom(foregroundColor: p.bad, minimumSize: const Size(0, 44)),
                         child: const Text('Пожаловаться на объявление', style: TextStyle(fontSize: 14)),
                       ),
@@ -2927,6 +2960,18 @@ class PhotoViewer extends StatelessWidget {
 // =====================================================================
 // Размещение и редактирование
 // =====================================================================
+
+const titleHints = {
+  Section.ads: 'Например: Квартира 2 комнаты у моря',
+  Section.services: 'Например: Ремонт кондиционеров с выездом',
+  Section.jobs: 'Например: Нужен администратор в отель',
+};
+
+const descHints = {
+  Section.ads: 'Состояние, размеры, что входит, где можно посмотреть',
+  Section.services: 'Что делаете, опыт, районы выезда, сроки',
+  Section.jobs: 'Обязанности, график, требования, оплата',
+};
 
 class AddPostScreen extends StatefulWidget {
   const AddPostScreen({super.key, required this.section, this.edit});
@@ -3031,8 +3076,14 @@ class _AddPostScreenState extends State<AddPostScreen> {
   Future<void> addPhotos() async {
     final app = AppScope.of(context);
     try {
-      final picked = await pickManyImages(5 - photos.length);
-      if (picked.isEmpty) return;
+      var picked = await pickManyImages(5 - photos.length);
+      if (picked.isEmpty || !mounted) return;
+      // одно фото — сразу предлагаем обрезать и повернуть
+      if (picked.length == 1) {
+        final edited = await push<Uint8List>(context, PhotoEditor(bytes: picked.first));
+        if (!mounted) return;
+        if (edited != null) picked = [edited];
+      }
       setState(() => uploading = true);
       for (final b in picked) {
         final url = await app.uploadImage(b, 'post');
@@ -3075,7 +3126,10 @@ class _AddPostScreenState extends State<AddPostScreen> {
       );
       if (!mounted) return;
       Navigator.pop(context, true);
-      toast(context, 'Отправлено на проверку. После одобрения объявление появится в ленте.');
+      final mine = app.myPosts.where((x) => x.title == title.text.trim()).toList();
+      toast(context, mine.isNotEmpty && mine.first.status == 'pending'
+          ? 'Объявление отправлено модератору — обычно проверка занимает до 15 минут.'
+          : 'Готово! Объявление опубликовано.');
     } catch (e) {
       if (!mounted) return;
       setState(() => busy = false);
@@ -3128,6 +3182,18 @@ class _AddPostScreenState extends State<AddPostScreen> {
                 height: 26,
                 decoration: BoxDecoration(color: withAlpha(0xFF13262B, .7), shape: BoxShape.circle),
                 child: const Center(child: Ico('close', size: 14, color: Colors.white, stroke: 2.6)),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 4,
+            bottom: 4,
+            child: IgnorePointer(
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(color: withAlpha(0xFF13262B, .7), shape: BoxShape.circle),
+                child: const Center(child: Ico('edit', size: 13, color: Colors.white, stroke: 2.2)),
               ),
             ),
           ),
@@ -3209,7 +3275,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
                   Field(
                     label: 'Заголовок',
                     controller: title,
-                    hint: 'Например: Квартира 2 комнаты у моря',
+                    hint: titleHints[section]!,
                     validator: notEmpty,
                     capitalization: TextCapitalization.sentences,
                   ),
@@ -3217,7 +3283,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
                   Field(
                     label: 'Описание',
                     controller: desc,
-                    hint: 'Подробности, состояние, условия',
+                    hint: descHints[section]!,
                     maxLines: 4,
                     capitalization: TextCapitalization.sentences,
                   ),
@@ -3227,7 +3293,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
                       child: Field(
                         label: priceLabels[section]!,
                         controller: price,
-                        hint: 'Договорная',
+                        hint: section == Section.jobs ? 'Пусто — договорная' : 'Пусто — договорная, 0 — бесплатно',
                         keyboard: TextInputType.number,
                       ),
                     ),
@@ -3258,7 +3324,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
                     autocorrect: false,
                   ),
                   const SizedBox(height: 8),
-                  Text('Объявление появится в ленте после проверки модератором. Запрещены ссылки, реклама, казино, интим и прочее по правилам сервиса.',
+                  Text('Объявление появится в ленте сразу после автоматической проверки. Подозрительные объявления сначала смотрит модератор. Запрещены мат, ссылки, казино, интим и другие нарушения правил.',
                       style: TextStyle(fontSize: 12, color: p.muted, height: 1.4)),
                   const SizedBox(height: 20),
                   PrimaryButton(widget.edit == null ? 'Опубликовать' : 'Сохранить изменения',
@@ -3569,9 +3635,12 @@ Future<void> changeAvatar(BuildContext context) async {
       if (context.mounted) toast(context, 'Фото удалено');
       return;
     }
-    final bytes = await pickOneImage(maxWidth: 600);
-    if (bytes == null) return;
-    if (context.mounted) toast(context, 'Загружаем фото…');
+    final picked = await pickOneImage(maxWidth: 1200);
+    if (picked == null || !context.mounted) return;
+    // обрезка по кругу, чтобы лицо было по центру
+    final bytes = await push<Uint8List>(context, PhotoEditor(bytes: picked, fixedAspect: 1, circle: true, maxSide: 600));
+    if (bytes == null || !context.mounted) return;
+    toast(context, 'Загружаем фото…');
     await app.updateAvatar(bytes);
     if (context.mounted) toast(context, 'Фото профиля обновлено');
   } catch (_) {
@@ -3624,13 +3693,21 @@ class ProfileScreen extends StatelessWidget {
     final reviews = app.user == null ? 0 : (app.reviewCounts[app.user!.id] ?? 0);
     final mode = app.themeMode;
 
-    Widget stat(String v, String label) => Expanded(
-          child: Column(children: [
-            Text(v, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: p.text)),
-            const SizedBox(height: 2),
-            Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: p.muted)),
-          ]),
+    Widget stat(String v, String label, VoidCallback onTap) => Expanded(
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Column(children: [
+                Text(v, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: p.text)),
+                const SizedBox(height: 2),
+                Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: p.accent)),
+              ]),
+            ),
+          ),
         );
+    void myReviews() => push(context, ReviewsScreen(userId: app.user!.id, name: app.userName));
 
     Widget infoRow(String icon, String label, String value) => Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -3706,9 +3783,12 @@ class ProfileScreen extends StatelessWidget {
                           ]),
                         ),
                         if (prof?.verified == true)
-                          const VerifiedPill(big: true, text: '✓ Документы проверены')
+                          const VerifiedPill(big: true, text: '✓ Telegram подтверждён')
                         else
-                          Pill('Не проверен', bg: p.soft, fg: p.muted, big: true),
+                          GestureDetector(
+                            onTap: () => push(context, const VerifyScreen()),
+                            child: Pill('Не проверен · пройти', bg: p.warnbg, fg: p.warn, big: true),
+                          ),
                       ]),
                       if (prof != null) ...[
                         const SizedBox(height: 8),
@@ -3718,10 +3798,10 @@ class ProfileScreen extends StatelessWidget {
                       Divider(height: 1, color: p.line3),
                       const SizedBox(height: 14),
                       Row(children: [
-                        stat('$active', adsWord(active)),
-                        stat('${app.favorites.length}', 'в избранном'),
+                        stat('$active', adsWord(active), () => push(context, const MyAdsScreen())),
+                        stat('${app.favorites.length}', 'в избранном', () => push(context, const FavoritesScreen())),
                         stat(rating == null ? '—' : rating.toStringAsFixed(1),
-                            reviews == 0 ? 'нет отзывов' : '$reviews ${reviewsWord(reviews)}'),
+                            reviews == 0 ? 'нет отзывов' : '$reviews ${reviewsWord(reviews)}', myReviews),
                       ]),
                       const SizedBox(height: 16),
                       SizedBox(
@@ -3833,6 +3913,12 @@ class ProfileScreen extends StatelessWidget {
                     MenuRow(icon: 'chat', label: 'Сообщения', right: app.unreadTotal > 0 ? '${app.unreadTotal}' : null,
                         rightAccent: app.unreadTotal > 0, onTap: () => push(context, const ChatsScreen())),
                     MenuRow(icon: 'globe', label: 'Язык', right: langName(app.lang), onTap: () => showLanguageSheet(context)),
+                    MenuRow(icon: 'star', label: 'Мои отзывы и рейтинг', onTap: myReviews),
+                    MenuRow(
+                        icon: 'lock',
+                        label: 'Заблокированные',
+                        right: app.blockedIds.isEmpty ? null : '${app.blockedIds.length}',
+                        onTap: () => push(context, const BlockedScreen())),
                     MenuRow(
                         icon: 'shield',
                         label: 'Проверка профиля',
@@ -4197,6 +4283,14 @@ class MyAdsScreen extends StatelessWidget {
                                     child: Text('Проверяем — обычно до нескольких часов',
                                         style: TextStyle(fontSize: 12.5, color: p.warn)),
                                   ),
+                                if (x.status == 'active')
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                        tr('👁 {v} просм. · ☎ {c} обращ. · ♡ {f}',
+                                            {'v': x.views, 'c': x.contacts, 'f': app.myFavCounts[x.id] ?? 0}),
+                                        style: TextStyle(fontSize: 12.5, color: p.text2)),
+                                  ),
                                 if (x.status == 'active' && x.isHighlighted)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 4),
@@ -4420,6 +4514,8 @@ class _ChatScreenState extends State<ChatScreen> {
   bool uploading = false;
   Timer? timer;
   bool started = false;
+  Profile? other;
+  int ticks = 0;
 
   @override
   void didChangeDependencies() {
@@ -4428,7 +4524,29 @@ class _ChatScreenState extends State<ChatScreen> {
     started = true;
     refresh();
     loadDeals();
-    timer = Timer.periodic(const Duration(seconds: 4), (_) => refresh());
+    loadOther();
+    AppScope.of(context).loadBlocks();
+    timer = Timer.periodic(const Duration(seconds: 4), (_) {
+      refresh();
+      if (++ticks % 8 == 0) loadOther(); // статус «в сети» — раз в ~30 секунд
+    });
+  }
+
+  Future<void> loadOther() async {
+    final pr = await AppScope.of(context).fetchProfile(widget.otherId);
+    if (mounted && pr != null) setState(() => other = pr);
+  }
+
+  Future<void> openPost() async {
+    final id = widget.postId;
+    if (id == null) return;
+    final post = await AppScope.of(context).fetchPost(id);
+    if (!mounted) return;
+    if (post == null) {
+      toast(context, 'Объявление снято с публикации или удалено.');
+      return;
+    }
+    push(context, PostDetailScreen(post: post));
   }
 
   Future<void> refresh() async {
@@ -4460,8 +4578,8 @@ class _ChatScreenState extends State<ChatScreen> {
       await app.sendMessage(widget.otherId, widget.postId, imageUrl != null ? '' : text, imageUrl: imageUrl);
       if (imageUrl == null) draft.clear();
       await refresh();
-    } catch (_) {
-      if (mounted) toast(context, 'Не удалось отправить. Проверьте интернет.');
+    } catch (e) {
+      if (mounted) toast(context, AppState.serverMessage(e, 'Не удалось отправить. Проверьте интернет.'));
     }
     if (mounted) setState(() => sending = false);
   }
@@ -4587,27 +4705,41 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(widget.otherName,
                       maxLines: 1, overflow: TextOverflow.ellipsis, style: heading(16, weight: FontWeight.w800, color: p.text)),
-                  Text('Открыть профиль', style: TextStyle(fontSize: 12, color: p.muted)),
+                  if (other?.lastSeen != null)
+                    Text(onlineText(other!.lastSeen),
+                        style: TextStyle(fontSize: 12, color: isOnline(other!.lastSeen) ? p.ok : p.muted))
+                  else
+                    Text('Открыть профиль', style: TextStyle(fontSize: 12, color: p.muted)),
                 ]),
               ),
             ),
+            IconBtn('menu', plain: true, label: 'Ещё', onTap: () async {
+              await showUserMenu(context, userId: widget.otherId, name: widget.otherName);
+              if (mounted) setState(() {});
+            }),
           ]),
         ),
         if (widget.postTitle.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(color: p.card, borderRadius: BorderRadius.circular(14), border: Border.all(color: p.line)),
-            child: Row(children: [
-              Ico('tag', size: 16, color: p.accent),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(widget.postTitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 13.5, color: p.text, fontWeight: FontWeight.w600)),
-              ),
-            ]),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            child: Box(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              radius: 14,
+              onTap: openPost,
+              child: Row(children: [
+                Ico('tag', size: 16, color: p.accent),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(widget.postTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 13.5, color: p.text, fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(width: 6),
+                Text('Открыть', style: TextStyle(fontSize: 12.5, color: p.accent, fontWeight: FontWeight.w600)),
+                Ico('chevron', size: 14, color: p.accent),
+              ]),
+            ),
           ),
         dealBar(),
         Expanded(
@@ -4650,7 +4782,29 @@ class _ChatScreenState extends State<ChatScreen> {
                       },
                     ),
         ),
-        // Поле ввода
+        // Поле ввода (или плашка, если переписка ограничена)
+        if (app.blockedIds.contains(widget.otherId) || app.blockedMe.contains(widget.otherId))
+          Container(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + mq.padding.bottom),
+            decoration: BoxDecoration(color: p.card, border: Border(top: BorderSide(color: p.line))),
+            child: Row(children: [
+              Ico('lock', size: 18, color: p.muted),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                    app.blockedIds.contains(widget.otherId)
+                        ? 'Вы заблокировали этого пользователя.'
+                        : 'Пользователь ограничил переписку с вами.',
+                    style: TextStyle(fontSize: 13.5, color: p.text2)),
+              ),
+              if (app.blockedIds.contains(widget.otherId))
+                TextButton(
+                  onPressed: () => app.setBlocked(widget.otherId, false),
+                  child: Text('Разблокировать', style: TextStyle(color: p.accent, fontWeight: FontWeight.w600)),
+                ),
+            ]),
+          )
+        else
         Container(
           padding: EdgeInsets.fromLTRB(8, 8, 10, 8 + mq.padding.bottom),
           decoration: BoxDecoration(color: p.card, border: Border(top: BorderSide(color: p.line))),
@@ -4942,6 +5096,7 @@ class _SellerScreenState extends State<SellerScreen> {
   List<Deal> deals = [];
   bool loading = true;
   bool started = false;
+  final adsKey = GlobalKey();
 
   @override
   void didChangeDependencies() {
@@ -4949,6 +5104,16 @@ class _SellerScreenState extends State<SellerScreen> {
     if (started) return;
     started = true;
     load();
+  }
+
+  void openReviews() {
+    final name = (prof?.name ?? '').isNotEmpty ? prof!.name : widget.name;
+    push(context, ReviewsScreen(userId: widget.userId, name: name));
+  }
+
+  void scrollToAds() {
+    final c = adsKey.currentContext;
+    if (c != null) Scrollable.ensureVisible(c, duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
   }
 
   Future<void> load() async {
@@ -5026,60 +5191,34 @@ class _SellerScreenState extends State<SellerScreen> {
     final self = app.user?.id == widget.userId;
     final canReview = deals.any((d) => !d.reviewed);
 
-    Widget stat(String v, String label) => Expanded(
-          child: Column(children: [
-            Text(v, style: heading(19, weight: FontWeight.w800, color: p.text)),
-            Text(label, style: TextStyle(fontSize: 12.5, color: p.muted)),
-          ]),
-        );
-
-    Widget summary() {
-      final counts = List<int>.filled(6, 0);
-      for (final r in reviews) {
-        counts[r.stars.clamp(1, 5)]++;
-      }
-      return Box(
-        padding: const EdgeInsets.all(16),
-        child: Row(children: [
-          Column(children: [
-            Text(avg.toStringAsFixed(1), style: heading(36, weight: FontWeight.w800, color: p.text, height: 1)),
-            const SizedBox(height: 6),
-            StarsRow(value: avg, size: 15),
-            const SizedBox(height: 4),
-            Text('${reviews.length} ${reviewsWord(reviews.length)}',
-                style: TextStyle(fontSize: 12.5, color: p.muted)),
-          ]),
-          const SizedBox(width: 18),
-          Expanded(
-            child: Column(children: [
-              for (var s = 5; s >= 1; s--)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(children: [
-                    SizedBox(width: 12, child: Text('$s', style: TextStyle(fontSize: 12, color: p.muted))),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(3),
-                        child: LinearProgressIndicator(
-                          value: reviews.isEmpty ? 0 : counts[s] / reviews.length,
-                          minHeight: 6,
-                          backgroundColor: p.soft,
-                          color: const Color(0xFFF5B82E),
-                        ),
-                      ),
-                    ),
-                  ]),
-                ),
-            ]),
+    Widget stat(String v, String label, VoidCallback? onTap) => Expanded(
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Column(children: [
+                Text(v, style: heading(19, weight: FontWeight.w800, color: p.text)),
+                Text(label, style: TextStyle(fontSize: 12.5, color: onTap == null ? p.muted : p.accent)),
+              ]),
+            ),
           ),
-        ]),
-      );
-    }
+        );
+    final blocked = app.blockedIds.contains(widget.userId);
+    final contactSrc = widget.fromPost?.contact ??
+        [if ((prof?.phone ?? '').isNotEmpty) prof!.phone!, if ((prof?.tgUsername ?? '').isNotEmpty) '@${prof!.tgUsername}'].join(' · ');
 
     return Scaffold(
       body: Column(children: [
-        const SubHeader(title: 'Профиль продавца'),
+        SubHeader(
+          title: self ? 'Мой профиль' : 'Профиль продавца',
+          trailing: self || app.user == null
+              ? null
+              : IconBtn('menu', label: 'Ещё', onTap: () async {
+                  await showUserMenu(context, userId: widget.userId, name: name);
+                  if (mounted) setState(() {});
+                }),
+        ),
         Expanded(
           child: loading
               ? const Center(child: CircularProgressIndicator())
@@ -5105,13 +5244,44 @@ class _SellerScreenState extends State<SellerScreen> {
                           Text(
                               '${tr(prof?.city ?? widget.fromPost?.city ?? '')}${prof != null ? ' · ${tr('на сайте с {y}', {'y': prof!.createdAt.year})}' : ''}',
                               style: TextStyle(fontSize: 13, color: p.muted)),
+                          if (prof?.lastSeen != null) ...[
+                            const SizedBox(height: 4),
+                            OnlineDot(lastSeen: prof!.lastSeen),
+                          ],
+                          if (prof?.verified == true) ...[
+                            const SizedBox(height: 8),
+                            const VerifiedPill(big: true, text: '✓ Telegram подтверждён'),
+                          ],
                           const SizedBox(height: 16),
                           Row(children: [
-                            stat(reviews.isEmpty ? '—' : avg.toStringAsFixed(1), 'рейтинг'),
-                            stat('${posts.length}', adsWord(posts.length)),
-                            stat('${reviews.length}', reviewsWord(reviews.length)),
+                            stat(reviews.isEmpty ? '—' : avg.toStringAsFixed(1), 'рейтинг', openReviews),
+                            stat('${posts.length}', adsWord(posts.length), posts.isEmpty ? null : scrollToAds),
+                            stat('${reviews.length}', reviewsWord(reviews.length), openReviews),
                           ]),
-                          if (!self) ...[
+                          if (!self && blocked) ...[
+                            const SizedBox(height: 14),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(color: p.warnbg, borderRadius: BorderRadius.circular(14)),
+                              child: Row(children: [
+                                Ico('lock', size: 18, color: p.warn),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                    child: Text('Вы заблокировали этого пользователя. Его объявления скрыты, писать вам он не может.',
+                                        style: TextStyle(fontSize: 13, color: p.warn, height: 1.4))),
+                              ]),
+                            ),
+                            const SizedBox(height: 8),
+                            OutlineBtn('Разблокировать', icon: 'lock', onPressed: () async {
+                              await app.setBlocked(widget.userId, false);
+                              if (mounted) toast(context, 'Пользователь разблокирован');
+                            }),
+                          ],
+                          if (!self && !blocked && contactSrc.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            ContactButtons(contact: contactSrc, postId: widget.fromPost?.id),
+                          ],
+                          if (!self && !blocked) ...[
                             const SizedBox(height: 16),
                             PrimaryButton('Написать', height: 48, icon: 'chat', onPressed: () {
                               if (app.user == null) {
@@ -5135,7 +5305,7 @@ class _SellerScreenState extends State<SellerScreen> {
                       const SizedBox(height: 6),
                       const SectionTitle('Отзывы'),
                       const SizedBox(height: 8),
-                      if (reviews.isNotEmpty) ...[summary(), const SizedBox(height: 10)],
+                      if (reviews.isNotEmpty) ...[RatingSummary(reviews: reviews, onTap: openReviews), const SizedBox(height: 10)],
                       if (!self && canReview) ...[
                         PrimaryButton('Оставить отзыв', icon: 'star', height: 48, onPressed: leaveReview),
                         const SizedBox(height: 10),
@@ -5160,72 +5330,17 @@ class _SellerScreenState extends State<SellerScreen> {
                           padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
                           child: Text('Отзывов пока нет.', style: TextStyle(fontSize: 14, color: p.muted)),
                         ),
-                      for (final r in reviews) ...[
-                        Box(
-                          padding: const EdgeInsets.all(14),
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Row(children: [
-                              Avatar(name: r.author, url: r.authorAvatar, size: 36),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Text(r.author, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5, color: p.text)),
-                                  Text(dateText(r.date), style: TextStyle(fontSize: 12, color: p.muted)),
-                                ]),
-                              ),
-                              StarsRow(value: r.stars.toDouble()),
-                            ]),
-                            if (r.postTitle.isNotEmpty) ...[
-                              const SizedBox(height: 10),
-                              Row(children: [
-                                Ico('check', size: 14, color: p.ok, stroke: 2.4),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(tr('Сделка: {t}', {'t': r.postTitle}),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(fontSize: 12.5, color: p.ok, fontWeight: FontWeight.w600)),
-                                ),
-                              ]),
-                            ],
-                            if (r.text.isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              Text(r.text, style: TextStyle(fontSize: 14.5, color: p.text2, height: 1.45)),
-                            ],
-                            if ((r.reply ?? '').isNotEmpty) ...[
-                              const SizedBox(height: 10),
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: p.soft,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border(left: BorderSide(color: p.primary, width: 3)),
-                                ),
-                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Text('Ответ продавца', style: TextStyle(fontSize: 12, color: p.accent, fontWeight: FontWeight.w700)),
-                                  const SizedBox(height: 3),
-                                  Text(r.reply!, style: TextStyle(fontSize: 13.5, color: p.text2, height: 1.4)),
-                                ]),
-                              ),
-                            ] else if (self) ...[
-                              const SizedBox(height: 6),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: TextButton(
-                                  onPressed: () => reply(r),
-                                  style: TextButton.styleFrom(foregroundColor: p.accent, padding: EdgeInsets.zero),
-                                  child: const Text('Ответить', style: TextStyle(fontWeight: FontWeight.w600)),
-                                ),
-                              ),
-                            ],
-                          ]),
-                        ),
+                      for (final r in reviews.take(3)) ...[
+                        ReviewCard(review: r, onReply: self && (r.reply ?? '').isEmpty ? () => reply(r) : null),
+                        const SizedBox(height: 10),
+                      ],
+                      if (reviews.length > 3) ...[
+                        OutlineBtn(tr('Все отзывы ({n})', {'n': reviews.length}), icon: 'star', onPressed: openReviews),
                         const SizedBox(height: 10),
                       ],
                       if (posts.isNotEmpty) ...[
                         const SizedBox(height: 4),
-                        const SectionTitle('Объявления продавца'),
+                        SectionTitle(self ? 'Мои объявления' : 'Объявления продавца', key: adsKey),
                         const SizedBox(height: 8),
                         for (final x in posts) ...[PostCard(post: x), const SizedBox(height: 10)],
                       ],
@@ -5379,7 +5494,43 @@ class _ModerationScreenState extends State<ModerationScreen> {
       if (reports.isEmpty) list.add(const EmptyState(icon: 'shield', text: 'Жалоб нет.'));
       for (final r in reports) {
         final pm = r['post'];
-        if (pm is! Map<String, dynamic>) continue;
+        if (pm is! Map<String, dynamic>) {
+          final t = r['target'];
+          if (t is! Map) continue;
+          list
+            ..add(Box(
+              padding: const EdgeInsets.all(12),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Row(children: [
+                  Avatar(name: (t['name'] ?? '') as String, url: t['avatar_url'] as String?, size: 40),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text((t['name'] ?? '—') as String, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: p.text)),
+                      Text('${tr('Жалоба на пользователя')}: ${tr((r['reason'] ?? '') as String)}',
+                          style: TextStyle(fontSize: 12.5, color: p.warn)),
+                    ]),
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(
+                    child: OutlineBtn('Профиль', height: 40, onPressed: () => push(context,
+                        SellerScreen(userId: t['id'] as String, name: (t['name'] ?? '') as String))),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlineBtn('Снять жалобу', height: 40, color: p.muted, onPressed: () async {
+                      await AppScope.of(context).deleteReport((r['id'] as num).toInt());
+                      load();
+                    }),
+                  ),
+                ]),
+              ]),
+            ))
+            ..add(const SizedBox(height: 10));
+          continue;
+        }
         final x = Post.fromMap(pm);
         list
           ..add(postCard(x,

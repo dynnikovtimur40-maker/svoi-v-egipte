@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -83,13 +85,13 @@ const categories = {
     'Няни',
     'Другое',
   ],
-  Section.jobs: ['Вакансии', 'Резюме', 'Удалёнка', 'Туризм', 'Отели и рестораны', 'Другое'],
+  Section.jobs: ['Вакансии', 'Подработка', 'Резюме', 'Удалёнка', 'Туризм', 'Отели и рестораны', 'Другое'],
 };
 
 const searchHints = {
   Section.ads: 'Квартира, iPhone, диван…',
   Section.services: 'Сантехник, виза, репетитор…',
-  Section.jobs: 'Гид, няня, удалёнка…',
+  Section.jobs: 'Гид, няня, подработка…',
 };
 
 const priceLabels = {
@@ -190,6 +192,8 @@ class Profile {
     this.verified = false,
     this.role = 'user',
     this.lang = 'ru',
+    this.tgUsername,
+    this.lastSeen,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -202,6 +206,8 @@ class Profile {
         verified: (m['verified'] ?? false) as bool,
         role: (m['role'] ?? 'user') as String,
         lang: (m['lang'] ?? 'ru') as String,
+        tgUsername: m['tg_username'] as String?,
+        lastSeen: DateTime.tryParse((m['last_seen'] ?? '') as String),
         createdAt: DateTime.tryParse((m['created_at'] ?? '') as String),
       );
 
@@ -213,6 +219,8 @@ class Profile {
   final bool verified;
   final String role;
   final String lang;
+  final String? tgUsername;
+  final DateTime? lastSeen;
   final DateTime createdAt;
 }
 
@@ -235,6 +243,9 @@ class Post {
     this.authorSince,
     this.rejectReason,
     this.autoFlags,
+    this.views = 0,
+    this.contacts = 0,
+    this.authorLastSeen,
     this.vipUntil,
     this.highlightUntil,
     DateTime? bumpedAt,
@@ -266,6 +277,9 @@ class Post {
       authorSince: DateTime.tryParse((prof['created_at'] ?? '') as String),
       rejectReason: m['reject_reason'] as String?,
       autoFlags: m['auto_flags'] as String?,
+      views: ((m['views'] ?? 0) as num).toInt(),
+      contacts: ((m['contacts'] ?? 0) as num).toInt(),
+      authorLastSeen: DateTime.tryParse((prof['last_seen'] ?? '') as String),
       vipUntil: DateTime.tryParse((m['vip_until'] ?? '') as String),
       highlightUntil: DateTime.tryParse((m['highlight_until'] ?? '') as String),
       bumpedAt: DateTime.tryParse((m['bumped_at'] ?? '') as String),
@@ -290,6 +304,9 @@ class Post {
   final DateTime? authorSince;
   final String? rejectReason;
   final String? autoFlags;
+  final int views;
+  final int contacts;
+  final DateTime? authorLastSeen;
   final DateTime? vipUntil;
   final DateTime? highlightUntil;
   final DateTime bumpedAt;
@@ -479,6 +496,11 @@ class AppState extends ChangeNotifier {
   String lang = appLang;
   List<Product> products = [];
   Verification? myVerification;
+  Set<String> blockedIds = {}; // кого заблокировал я
+  Set<String> blockedMe = {}; // кто заблокировал меня
+  Map<String, int> myFavCounts = {};
+  Timer? _presence;
+  String _device = '';
 
   User? get user => sb.auth.currentUser;
   String get userName {
@@ -507,6 +529,12 @@ class AppState extends ChangeNotifier {
       if (l != null && appLanguages.any((x) => x[0] == l)) {
         lang = l;
         appLang = l;
+      }
+      _device = p.getString('device') ?? '';
+      if (_device.isEmpty) {
+        final r = math.Random.secure();
+        _device = List.generate(16, (_) => r.nextInt(16).toRadixString(16)).join();
+        await p.setString('device', _device);
       }
       final c = p.getString('city');
       if (c != null && cities.contains(c)) city = c;
@@ -568,7 +596,7 @@ class AppState extends ChangeNotifier {
   // ---------- Загрузка ----------
 
   static const _postSelect =
-      '*, profiles!posts_user_id_fkey(name, verified, avatar_url, created_at)';
+      '*, profiles!posts_user_id_fkey(name, verified, avatar_url, created_at, last_seen)';
 
   Future<void> load() async {
     loading = true;
@@ -619,10 +647,17 @@ class AppState extends ChangeNotifier {
       myPosts = [];
       threads = [];
       myVerification = null;
+      blockedIds = {};
+      blockedMe = {};
+      myFavCounts = {};
+      _presence?.cancel();
+      _presence = null;
       notifyListeners();
       return;
     }
-    await Future.wait([loadProfile(), loadFavorites(), loadMyPosts(), loadThreads(), loadMyVerification()]);
+    touchOnline();
+    _presence ??= Timer.periodic(const Duration(seconds: 60), (_) => touchOnline());
+    await Future.wait([loadProfile(), loadFavorites(), loadMyPosts(), loadThreads(), loadMyVerification(), loadBlocks()]);
     final pl = profile?.lang;
     if (pl != null && pl != lang) {
       try {
@@ -666,6 +701,11 @@ class AppState extends ChangeNotifier {
           .order('created_at', ascending: false);
       myPosts = rows.map<Post>((m) => Post.fromMap(m)).toList();
       notifyListeners();
+      try {
+        final f = await sb.rpc('my_post_favs') as List;
+        myFavCounts = {for (final r in f) r['post_id'] as String: (r['favs'] as num).toInt()};
+        notifyListeners();
+      } catch (_) {}
     } catch (_) {}
   }
 
@@ -798,18 +838,92 @@ class AppState extends ChangeNotifier {
     return true;
   }
 
-  Future<void> report(String postId) async {
+  /// Жалоба на объявление или пользователя. Возвращает 'ok', 'dup' или 'error'.
+  Future<String> report({String? postId, String? userId, String reason = ''}) async {
+    final u = user;
+    if (u == null) return 'error';
+    try {
+      await sb.from('reports').insert({
+        'post_id': postId,
+        'target_user': userId,
+        'user_id': u.id,
+        'reason': reason,
+      });
+      return 'ok';
+    } on PostgrestException catch (e) {
+      return e.code == '23505' ? 'dup' : 'error';
+    } catch (_) {
+      return 'error';
+    }
+  }
+
+  // ---------- Блокировки, онлайн, просмотры ----------
+
+  Future<void> loadBlocks() async {
     final u = user;
     if (u == null) return;
     try {
-      await sb.from('reports').insert({'post_id': postId, 'user_id': u.id});
+      final rows = await sb.from('blocks').select('blocker, blocked');
+      blockedIds = {for (final r in rows) if (r['blocker'] == u.id) r['blocked'] as String};
+      blockedMe = {for (final r in rows) if (r['blocked'] == u.id) r['blocker'] as String};
+      notifyListeners();
     } catch (_) {}
+  }
+
+  Future<void> setBlocked(String otherId, bool block) async {
+    final u = user;
+    if (u == null) throw Exception('Нужно войти');
+    if (block) {
+      await sb.from('blocks').upsert({'blocker': u.id, 'blocked': otherId});
+      blockedIds = {...blockedIds, otherId};
+    } else {
+      await sb.from('blocks').delete().eq('blocker', u.id).eq('blocked', otherId);
+      blockedIds = {...blockedIds}..remove(otherId);
+    }
+    notifyListeners();
+  }
+
+  Future<List<Profile>> fetchProfiles(Iterable<String> ids) async {
+    if (ids.isEmpty) return [];
+    try {
+      final rows = await sb.from('profiles').select().inFilter('id', ids.toList());
+      return rows.map<Profile>((m) => Profile.fromMap(m)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> touchOnline() async {
+    if (user == null) return;
+    try {
+      await sb.rpc('touch_online');
+    } catch (_) {}
+  }
+
+  /// Просмотр ('view') или обращение ('contact'): один раз в сутки от человека, свои не считаются.
+  Future<void> registerEvent(String postId, String kind) async {
+    try {
+      await sb.rpc('register_event', params: {'p_post': postId, 'p_kind': kind, 'p_device': _device});
+    } catch (_) {}
+  }
+
+  Future<Post?> fetchPost(String id) async {
+    for (final p in [...posts, ...myPosts]) {
+      if (p.id == id) return p;
+    }
+    try {
+      final r = await sb.from('posts').select(_postSelect).eq('id', id).maybeSingle();
+      return r == null ? null : Post.fromMap(r);
+    } catch (_) {
+      return null;
+    }
   }
 
   List<Post> filter(Section s, String? category, String query, Filters f) {
     final q = query.trim().toLowerCase();
     final list = posts.where((p) {
       if (p.section != s) return false;
+      if (blockedIds.contains(p.userId)) return false;
       if (city != cities.first && p.city != city) return false;
       if (category != null && p.category != category) return false;
       if (f.verifiedOnly && !p.verified) return false;
@@ -959,7 +1073,7 @@ class AppState extends ChangeNotifier {
   Future<List<Map<String, dynamic>>> fetchReports() async {
     final rows = await sb
         .from('reports')
-        .select('id, reason, created_at, post:posts(*, profiles!posts_user_id_fkey(name, verified, avatar_url, created_at))')
+        .select('id, reason, created_at, target_user, target:profiles!reports_target_user_fkey(id, name, avatar_url, created_at), post:posts(*, profiles!posts_user_id_fkey(name, verified, avatar_url, created_at))')
         .order('created_at', ascending: false)
         .limit(200);
     return List<Map<String, dynamic>>.from(rows);
@@ -992,6 +1106,13 @@ class AppState extends ChangeNotifier {
     final data = res.data;
     if (data is Map && data['url'] is String) return data['url'] as String;
     throw Exception('bot');
+  }
+
+  /// Код из бота. Результат: ok, wrong, expired, locked, none, taken.
+  Future<String> confirmVerification(String code) async {
+    final r = await sb.rpc('confirm_verification', params: {'p_code': code.trim()}) as String;
+    if (r == 'ok') await Future.wait([loadProfile(), loadMyVerification(), load()]);
+    return r;
   }
 
   Future<List<Verification>> fetchVerifications() async {
@@ -1162,3 +1283,24 @@ const demoDirectory = <DirItem>[
   DirItem('Полиция', 'Вся страна', '122'),
   DirItem('Туристическая полиция', 'Вся страна', '126'),
 ];
+
+// ---------- Онлайн-статус ----------
+
+bool isOnline(DateTime? d) => d != null && DateTime.now().difference(d.toLocal()).inMinutes < 3;
+
+/// «в сети», «был(а) 5 мин назад», «был(а) сегодня в 14:30», «был(а) вчера в 09:10», «был(а) 12 нояб.»
+String onlineText(DateTime? d) {
+  if (d == null) return '';
+  final l = d.toLocal();
+  final now = DateTime.now();
+  final diff = now.difference(l);
+  if (diff.inMinutes < 3) return tr('в сети');
+  if (diff.inMinutes < 60) return tr('был(а) {n} мин назад', {'n': diff.inMinutes});
+  final hm = '${l.hour.toString().padLeft(2, '0')}:${l.minute.toString().padLeft(2, '0')}';
+  final today = DateTime(now.year, now.month, now.day);
+  final day = DateTime(l.year, l.month, l.day);
+  final days = today.difference(day).inDays;
+  if (days == 0) return tr('был(а) сегодня в {t}', {'t': hm});
+  if (days == 1) return tr('был(а) вчера в {t}', {'t': hm});
+  return tr('был(а) {d}', {'d': dateText(l)});
+}
