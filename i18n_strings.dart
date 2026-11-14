@@ -769,4 +769,11 @@ const Map<String, List<String>> kTr = {
   'Рядом': ['Nearby', 'Поруч', 'بالقرب', 'In der Nähe'],
   'Свежие объявления': ['Latest listings', 'Свіжі оголошення', 'أحدث الإعلانات', 'Neueste Anzeigen'],
   'Объявлений в этом городе пока нет — станьте первым!': ['No listings in this city yet — be the first!', 'Оголошень у цьому місті поки немає — станьте першим!', 'لا توجد إعلانات في هذه المدينة بعد — كن الأول!', 'Noch keine Anzeigen in dieser Stadt — seien Sie der Erste!'],
+  'Мы отправили код на {e}. Введите 6 цифр из письма ниже. Не видите письмо — проверьте «Спам» и «Промоакции».': ['We sent a code to {e}. Enter the 6 digits below. No email? Check Spam and Promotions.', 'Ми надіслали код на {e}. Введіть 6 цифр із листа нижче. Немає листа — перевірте «Спам» і «Промоакції».', 'أرسلنا رمزًا إلى {e}. أدخل الأرقام الستة أدناه. لم تجد الرسالة؟ تحقق من البريد العشوائي والعروض.', 'Wir haben einen Code an {e} gesendet. Geben Sie die 6 Ziffern unten ein. Keine E-Mail? Prüfen Sie Spam und Werbung.'],
+  'Почта ещё не подтверждена. Введите код из письма или отправьте его ещё раз.': ['Email not confirmed yet. Enter the code from the email or resend it.', 'Пошту ще не підтверджено. Введіть код із листа або надішліть його ще раз.', 'لم يتم تأكيد البريد بعد. أدخل الرمز من الرسالة أو أعد إرساله.', 'E-Mail noch nicht bestätigt. Code eingeben oder erneut senden.'],
+  'Код неверный или устарел. Отправьте письмо ещё раз.': ['The code is wrong or expired. Send the email again.', 'Код невірний або застарів. Надішліть лист ще раз.', 'الرمز خاطئ أو منتهي. أعد إرسال الرسالة.', 'Code falsch oder abgelaufen. E-Mail erneut senden.'],
+  'Введите 6 цифр из письма': ['Enter the 6 digits from the email', 'Введіть 6 цифр із листа', 'أدخل الأرقام الستة من الرسالة', 'Geben Sie die 6 Ziffern aus der E-Mail ein'],
+  'Код из письма': ['Code from the email', 'Код із листа', 'الرمز من الرسالة', 'Code aus der E-Mail'],
+  'Подтвердить почту': ['Confirm email', 'Підтвердити пошту', 'تأكيد البريد', 'E-Mail bestätigen'],
+  'Уже подтвердил — войти': ['Already confirmed — sign in', 'Вже підтвердив — увійти', 'أكدت بالفعل — تسجيل الدخول', 'Bereits bestätigt — anmelden'],
 };

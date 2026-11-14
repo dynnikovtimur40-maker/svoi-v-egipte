@@ -1477,18 +1477,21 @@ class _AuthScreenState extends State<AuthScreen> {
   final name = TextEditingController();
   final email = TextEditingController();
   final pass = TextEditingController();
+  final code = TextEditingController();
 
   @override
   void dispose() {
     name.dispose();
     email.dispose();
     pass.dispose();
+    code.dispose();
     super.dispose();
   }
 
   String translate(String m) {
     final l = m.toLowerCase();
-    if (l.contains('not confirmed')) return 'Почта ещё не подтверждена. Откройте письмо и нажмите ссылку.';
+    if (l.contains('not confirmed')) return 'Почта ещё не подтверждена. Введите код из письма или отправьте его ещё раз.';
+    if (l.contains('expired') || l.contains('otp') || l.contains('token')) return 'Код неверный или устарел. Отправьте письмо ещё раз.';
     if (l.contains('invalid login')) return 'Неверная почта или пароль';
     if (l.contains('already registered') || l.contains('already been registered')) {
       return 'Эта почта уже зарегистрирована — войдите';
@@ -1529,7 +1532,7 @@ class _AuthScreenState extends State<AuthScreen> {
             register = false;
             needConfirm = true;
           });
-          say(tr('Мы отправили письмо на {e}. Откройте его и нажмите ссылку «Подтвердить», затем войдите здесь.', {'e': e}), ok: true);
+          say(tr('Мы отправили код на {e}. Введите 6 цифр из письма ниже. Не видите письмо — проверьте «Спам» и «Промоакции».', {'e': e}), ok: true);
         }
       } else {
         await auth.signInWithPassword(email: e, password: p);
@@ -1539,6 +1542,29 @@ class _AuthScreenState extends State<AuthScreen> {
         if (err.message.toLowerCase().contains('not confirmed')) setState(() => needConfirm = true);
         say(translate(err.message));
       }
+    } catch (_) {
+      if (mounted) say('Нет связи с сервером, попробуйте ещё раз');
+    }
+    if (mounted) setState(() => busy = false);
+  }
+
+  Future<void> verifyCode() async {
+    final e = email.text.trim();
+    final t = code.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (!e.contains('@')) {
+      say('Введите почту, на которую регистрировались');
+      return;
+    }
+    if (t.length < 6) {
+      say('Введите 6 цифр из письма');
+      return;
+    }
+    setState(() => busy = true);
+    try {
+      await Supabase.instance.client.auth.verifyOTP(type: OtpType.signup, email: e, token: t);
+      // сессия создана — экран сам сменится на приложение
+    } on AuthException catch (err) {
+      if (mounted) say(translate(err.message));
     } catch (_) {
       if (mounted) say('Нет связи с сервером, попробуйте ещё раз');
     }
@@ -1678,7 +1704,18 @@ class _AuthScreenState extends State<AuthScreen> {
                           ]),
                         ),
                       ],
-                      if (needConfirm && !register)
+                      if (needConfirm && !register) ...[
+                        const SizedBox(height: 12),
+                        Field(
+                          label: 'Код из письма',
+                          controller: code,
+                          hint: '123456',
+                          keyboard: TextInputType.number,
+                          autocorrect: false,
+                          onSubmitted: (_) => verifyCode(),
+                        ),
+                        const SizedBox(height: 10),
+                        PrimaryButton('Подтвердить почту', busy: busy, onPressed: verifyCode),
                         Align(
                           alignment: Alignment.centerLeft,
                           child: TextButton(
@@ -1687,8 +1724,15 @@ class _AuthScreenState extends State<AuthScreen> {
                             child: const Text('Отправить письмо ещё раз', style: TextStyle(fontWeight: FontWeight.w600)),
                           ),
                         ),
+                      ],
                       const SizedBox(height: 16),
-                      PrimaryButton(register ? 'Зарегистрироваться' : 'Войти', busy: busy, onPressed: submit),
+                      if (!(needConfirm && !register))
+                        PrimaryButton(register ? 'Зарегистрироваться' : 'Войти', busy: busy, onPressed: submit)
+                      else
+                        OutlineBtn('Уже подтвердил — войти', height: 48, color: p.text, onPressed: () {
+                          setState(() => needConfirm = false);
+                          submit();
+                        }),
                       if (!register)
                         TextButton(
                           onPressed: resetPassword,

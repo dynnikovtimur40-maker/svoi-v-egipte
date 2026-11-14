@@ -4,7 +4,7 @@ name: Supabase functions
 # Нужен секрет репозитория SUPABASE_ACCESS_TOKEN. Остальные ключи — по мере подключения сервисов.
 on:
   push:
-    paths: ['supabase/functions/**', '.github/workflows/supabase.yml']
+    paths: ['supabase/functions/**', 'supabase/templates/**', '.github/workflows/supabase.yml']
   workflow_dispatch:
 
 jobs:
@@ -64,7 +64,11 @@ jobs:
       - name: Auth email via Resend SMTP
         if: steps.chk.outputs.ok == '1' && env.RESEND_API_KEY != ''
         run: |
-          body=$(jq -n --arg pass "$RESEND_API_KEY" '{smtp_admin_email:"noreply@svoi-egypt.com", smtp_sender_name:"Свои в Египте", smtp_host:"smtp.resend.com", smtp_port:"465", smtp_user:"resend", smtp_pass:$pass, rate_limit_email_sent:100}')
+          body=$(jq -n --arg pass "$RESEND_API_KEY" --rawfile conf supabase/templates/confirm.html --rawfile rec supabase/templates/recovery.html \
+            '{smtp_admin_email:"noreply@svoi-egypt.com", smtp_sender_name:"Свои в Египте", smtp_host:"smtp.resend.com", smtp_port:"465", smtp_user:"resend", smtp_pass:$pass, rate_limit_email_sent:100,
+              mailer_otp_length:6, mailer_otp_exp:3600,
+              mailer_subjects_confirmation:"Код подтверждения — Свои в Египте", mailer_templates_confirmation_content:$conf,
+              mailer_subjects_recovery:"Сброс пароля — Свои в Египте", mailer_templates_recovery_content:$rec}')
           code=$(curl -s -o out.json -w '%{http_code}' -X PATCH -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
             "https://api.supabase.com/v1/projects/$PROJECT/config/auth" -d "$body")
           if [ "$code" = "200" ]; then echo "::notice title=smtp::ok"; else echo "::error title=smtp::HTTP $code $(head -c 300 out.json)"; fi

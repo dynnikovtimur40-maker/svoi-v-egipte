@@ -1,0 +1,13 @@
+<!doctype html><html><body style="margin:0;padding:0;background:#EEF4F4;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#EEF4F4;padding:24px 0"><tr><td align="center">
+<table width="480" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden">
+<tr><td style="background:linear-gradient(135deg,#14B8A6,#0B3B4A);background-color:#0F766E;padding:22px 24px;color:#fff">
+<div style="font-size:20px;font-weight:800">🇪🇬 Свои в Египте</div><div style="font-size:13px;opacity:.85">Всё для жизни и отдыха в Египте</div></td></tr>
+<tr><td style="padding:24px">
+<div style="font-size:18px;font-weight:800;color:#0B2B33">Ваш код подтверждения</div>
+<div style="font-size:14px;color:#41575C;margin:8px 0 18px;line-height:1.5">Введите этот код в приложении, чтобы подтвердить почту. Код действует 1 час.</div>
+<div style="text-align:center;margin:0 0 18px"><div style="display:inline-block;font-size:34px;letter-spacing:8px;font-weight:800;color:#0F766E;background:#E6F7F5;border-radius:14px;padding:14px 22px">{{ .Token }}</div></div>
+<div style="text-align:center;margin-bottom:22px"><a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#0F766E;color:#fff;text-decoration:none;font-weight:700;border-radius:12px;padding:12px 22px">Или подтвердить по ссылке</a></div>
+<div style="border-top:1px solid #E3EBEC;padding-top:14px;font-size:13px;color:#6B7F84;line-height:1.5"><b>Your confirmation code</b><br>Enter this code in the app to confirm your email. Code: <b>{{ .Token }}</b> · <a href="{{ .ConfirmationURL }}" style="color:#0F766E">or confirm via link</a></div>
+<div style="font-size:12px;color:#97A6AA;margin-top:14px">Если это были не вы — просто удалите письмо. If this wasn’t you, ignore this email.</div>
+</td></tr></table></td></tr></table></body></html>
