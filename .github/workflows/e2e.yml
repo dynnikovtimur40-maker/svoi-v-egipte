@@ -21,6 +21,7 @@ jobs:
       - name: Keys
         run: |
           curl -s -H "Authorization: Bearer $SB" "https://api.supabase.com/v1/projects/pjjeypdxwnbtyqabhroi/api-keys?reveal=true" > keys.json
+          echo "::notice title=keys::$(python3 -c "import json;k=json.load(open('keys.json'));print([ (x.get('name'), x.get('type'), len(x.get('api_key') or '')) for x in k] if isinstance(k,list) else str(k)[:200])")"
           ANON=$(python3 -c "import json;k=json.load(open('keys.json'));print(next(x['api_key'] for x in k if x['name']=='anon'))")
           SERVICE=$(python3 -c "import json;k=json.load(open('keys.json'));print(next(x['api_key'] for x in k if x['name']=='service_role'))")
           rm keys.json
