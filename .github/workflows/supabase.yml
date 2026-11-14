@@ -43,10 +43,11 @@ jobs:
             echo "ok=1" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: supabase/setup-cli@v1
+      - name: Install Supabase CLI
         if: steps.chk.outputs.ok == '1'
-        with:
-          version: latest
+        run: |
+          npm i -g supabase > npm.txt 2>&1 || { echo "::error title=cli::$(tail -5 npm.txt | tr '\n' ' ')"; exit 1; }
+          supabase --version
 
       - name: Set function secrets
         if: steps.chk.outputs.ok == '1'
