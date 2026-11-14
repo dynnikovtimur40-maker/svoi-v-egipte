@@ -63,7 +63,7 @@ jobs:
       - name: Deploy functions
         if: steps.chk.outputs.ok == '1'
         run: |
-          for f in tg-bot payments notify rates; do
+          for f in tg-bot payments notify rates news-sync; do
             if out=$(supabase functions deploy "$f" --project-ref "$PROJECT" --no-verify-jwt --use-api --yes 2>&1); then
               echo "::notice title=deploy $f::ok"
             else
