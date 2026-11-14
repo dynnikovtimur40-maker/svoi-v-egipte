@@ -2190,6 +2190,10 @@ class AppDrawer extends StatelessWidget {
                   }),
                 ],
                 label('О сервисе'),
+                item('send', 'Наш Telegram-канал', onTap: () {
+                  launchUrl(Uri.parse('https://t.me/svoi_egypt'), mode: LaunchMode.externalApplication);
+                  close();
+                }),
                 item('doc', 'Правила и конфиденциальность', onTap: () {
                   close();
                   push(context, const PolicyScreen());
