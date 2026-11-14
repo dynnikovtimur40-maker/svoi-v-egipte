@@ -1,10 +1,14 @@
 // Этап 6: язык, проверка профиля, продвижение, редактор фото, путеводитель.
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart' hide Text;
+import 'package:flutter/widgets.dart' as w show Text;
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'config.dart';
@@ -816,8 +820,164 @@ class _CropPainter extends CustomPainter {
 }
 
 // =====================================================================
-// Путеводитель
+// Путеводитель: фото из Википедии, погода и вода сейчас, места, удобства для туриста
 // =====================================================================
+
+final Map<String, Future<String?>> _wikiCache = {};
+
+/// Фото из статьи английской Википедии (свободная лицензия, источник подписан).
+Future<String?> wikiImage(String title, {bool big = false}) {
+  final key = '$title|$big';
+  return _wikiCache[key] ??= () async {
+    try {
+      final r = await http.get(Uri.parse('https://en.wikipedia.org/api/rest_v1/page/summary/${Uri.encodeComponent(title)}'));
+      if (r.statusCode != 200) return null;
+      final j = jsonDecode(r.body) as Map;
+      final img = (big ? (j['originalimage'] ?? j['thumbnail']) : (j['thumbnail'] ?? j['originalimage'])) as Map?;
+      var url = img?['source'] as String?;
+      // уменьшаем большие оригиналы до разумной ширины
+      if (url != null && big && url.contains('/commons/') && !url.contains('/thumb/')) {
+        final file = url.split('/').last;
+        final path = url.substring(url.indexOf('/commons/') + 9);
+        url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/$path/1200px-$file';
+      }
+      return url;
+    } catch (_) {
+      return null;
+    }
+  }();
+}
+
+class WikiPhoto extends StatelessWidget {
+  const WikiPhoto({super.key, required this.title, this.big = false, this.hue = 0xFF14B8A6, this.icon = 'image'});
+  final String title;
+  final bool big;
+  final int hue;
+  final String icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = Container(
+      decoration: BoxDecoration(gradient: LinearGradient(colors: [Color(hue).withAlpha(120), Color(hue).withAlpha(40)])),
+      child: Center(child: Ico(icon, size: big ? 48 : 28, color: Colors.white.withAlpha(200), stroke: 1.6)),
+    );
+    return FutureBuilder<String?>(
+      future: wikiImage(title, big: big),
+      builder: (_, snap) {
+        final url = snap.data;
+        if (url == null) return fallback;
+        return Image.network(url, fit: BoxFit.cover, gaplessPlayback: true, errorBuilder: (_, __, ___) => fallback);
+      },
+    );
+  }
+}
+
+final Map<String, Future<List<num?>>> _weatherCache = {};
+
+/// [температура воздуха, код погоды, температура воды]
+Future<List<num?>> cityWeather(GuideCity c) => _weatherCache[c.name] ??= () async {
+      num? t, code, sea;
+      try {
+        final r = await http.get(Uri.parse(
+            'https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}&current=temperature_2m,weather_code'));
+        final j = jsonDecode(r.body) as Map;
+        t = (j['current'] as Map?)?['temperature_2m'] as num?;
+        code = (j['current'] as Map?)?['weather_code'] as num?;
+      } catch (_) {}
+      if (c.sea) {
+        try {
+          final r = await http.get(Uri.parse(
+              'https://marine-api.open-meteo.com/v1/marine?latitude=${c.lat}&longitude=${c.lon}&current=sea_surface_temperature'));
+          final j = jsonDecode(r.body) as Map;
+          sea = (j['current'] as Map?)?['sea_surface_temperature'] as num?;
+        } catch (_) {}
+      }
+      return [t, code, sea];
+    }();
+
+String weatherIcon(num? code) {
+  final c = (code ?? 0).toInt();
+  if (c == 0) return '☀️';
+  if (c <= 3) return '⛅';
+  if (c == 45 || c == 48) return '🌫️';
+  if (c >= 95) return '⛈️';
+  if (c >= 51) return '🌧️';
+  return '☀️';
+}
+
+class WeatherLine extends StatelessWidget {
+  const WeatherLine({super.key, required this.city, this.light = false});
+  final GuideCity city;
+  final bool light;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+    return FutureBuilder<List<num?>>(
+      future: cityWeather(city),
+      builder: (_, snap) {
+        final d = snap.data;
+        if (d == null || d[0] == null) return const SizedBox.shrink();
+        final txt = '${weatherIcon(d[1])} ${d[0]!.round()}°'
+            '${d[2] != null ? ' · ${tr('вода')} ${d[2]!.round()}°' : ''}';
+        return Text(txt,
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: light ? Colors.white : p.text,
+                shadows: light ? const [Shadow(color: Color(0x99000000), blurRadius: 6)] : null));
+      },
+    );
+  }
+}
+
+/// Плитки «Для туриста» — в путеводителе и во вкладке «Полезное».
+class TouristTiles extends StatelessWidget {
+  const TouristTiles({super.key, this.withGuide = false});
+  final bool withGuide;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+    final tiles = <List<Object>>[
+      if (withGuide) ['pyramid', 'Путеводитель', 'Города и места', const GuideScreen()],
+      ['help', 'Советы туристу', 'Виза, деньги, такси', const GuideBasicsScreen()],
+      ['chat', 'Разговорник', 'Арабский для туриста', const PhrasebookScreen()],
+      ['sun', 'Погода по месяцам', 'Когда ехать', const SeasonsScreen()],
+      ['check', 'Что взять с собой', 'Чек-лист', const ChecklistScreen()],
+      ['phone', 'Полезные приложения', 'Такси, доставка, карты', const AppsScreen()],
+      ['shield', 'Посольства', 'Официальные сайты', const EmbassiesScreen()],
+    ];
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 10,
+      crossAxisSpacing: 10,
+      childAspectRatio: 1.75,
+      children: [
+        for (final t in tiles)
+          Box(
+            padding: const EdgeInsets.all(12),
+            onTap: () => push(context, t[3] as Widget),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(color: p.sel, borderRadius: BorderRadius.circular(10)),
+                child: Center(child: Ico(t[0] as String, size: 18, color: p.accent)),
+              ),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(t[1] as String, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: p.text)),
+                Text(t[2] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: p.muted)),
+              ]),
+            ]),
+          ),
+      ],
+    );
+  }
+}
 
 class GuideScreen extends StatelessWidget {
   const GuideScreen({super.key});
@@ -834,56 +994,54 @@ class GuideScreen extends StatelessWidget {
             children: [
               Text('Египет для туриста', style: heading(22, weight: FontWeight.w800, color: p.text)),
               const SizedBox(height: 4),
-              Text('Города, что посмотреть, советы и важные номера.', style: TextStyle(fontSize: 14, color: p.muted)),
+              Text('Города, места, погода сейчас и всё, что пригодится в поездке.', style: TextStyle(fontSize: 14, color: p.muted)),
               const SizedBox(height: 14),
-              Box(
-                onTap: () => push(context, const GuideBasicsScreen()),
-                child: Row(children: [
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(gradient: p.primaryGradient, borderRadius: BorderRadius.circular(14)),
-                    child: Center(child: Ico('help', size: 24, color: p.onPrimary)),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Советы туристу', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.text)),
-                      Text('Виза, деньги, такси, чаевые, экстренные номера',
-                          style: TextStyle(fontSize: 12.5, color: p.muted)),
-                    ]),
-                  ),
-                  Ico('chevron', size: 16, color: p.muted),
-                ]),
-              ),
+              const TouristTiles(),
               const SizedBox(height: 18),
               const SectionTitle('Города'),
               const SizedBox(height: 8),
               for (final c in guideCities) ...[
-                Box(
+                GestureDetector(
                   onTap: () => push(context, GuideCityScreen(city: c)),
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(color: Color(c.hue).withAlpha(40), borderRadius: BorderRadius.circular(14)),
-                      child: Center(child: Ico(c.icon, size: 22, color: Color(c.hue))),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(c.name, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.text)),
-                        const SizedBox(height: 2),
-                        Text(c.local.intro,
-                            maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: p.muted, height: 1.35)),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: SizedBox(
+                      height: 168,
+                      child: Stack(fit: StackFit.expand, children: [
+                        WikiPhoto(title: c.wiki, big: true, hue: c.hue, icon: c.icon),
+                        const DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Color(0x00000000), Color(0x22000000), Color(0xCC000000)],
+                            ),
+                          ),
+                        ),
+                        Positioned(right: 12, top: 10, child: WeatherLine(city: c, light: true)),
+                        Positioned(
+                          left: 14,
+                          right: 14,
+                          bottom: 12,
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(c.name,
+                                style: heading(21, weight: FontWeight.w800, color: Colors.white)
+                                    .copyWith(shadows: const [Shadow(color: Color(0x99000000), blurRadius: 8)])),
+                            const SizedBox(height: 2),
+                            Text(c.local.intro,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 13, color: Color(0xEEFFFFFF), height: 1.35)),
+                          ]),
+                        ),
                       ]),
                     ),
-                    const SizedBox(width: 6),
-                    Padding(padding: const EdgeInsets.only(top: 14), child: Ico('chevron', size: 16, color: p.muted)),
-                  ]),
+                  ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
               ],
+              Text('Фото: Википедия / Wikimedia Commons. Погода: Open-Meteo.',
+                  textAlign: TextAlign.center, style: TextStyle(fontSize: 11.5, color: p.muted)),
             ],
           ),
         ),
@@ -933,6 +1091,7 @@ class GuideCityScreen extends StatelessWidget {
     final app = AppScope.of(context);
     final g = city.local;
     final hue = Color(city.hue);
+    final mq = MediaQuery.of(context);
 
     Widget block(String title, String icon, List<String> items) => Padding(
           padding: const EdgeInsets.only(bottom: 14),
@@ -961,25 +1120,91 @@ class GuideCityScreen extends StatelessWidget {
         );
 
     return Scaffold(
-      body: Column(children: [
-        SubHeader(title: city.name),
-        Expanded(
-          child: ListView(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + MediaQuery.of(context).padding.bottom),
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
+      body: ListView(
+        padding: EdgeInsets.only(bottom: 24 + mq.padding.bottom),
+        children: [
+          SizedBox(
+            height: 260 + mq.padding.top,
+            child: Stack(fit: StackFit.expand, children: [
+              WikiPhoto(title: city.wiki, big: true, hue: city.hue, icon: city.icon),
+              const DecoratedBox(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [hue.withAlpha(70), hue.withAlpha(20)]),
-                  borderRadius: BorderRadius.circular(20),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0x66000000), Color(0x00000000), Color(0xCC000000)],
+                  ),
                 ),
-                child: Row(children: [
-                  Ico(city.icon, size: 40, color: hue, stroke: 1.6),
-                  const SizedBox(width: 14),
-                  Expanded(child: Text(g.intro, style: TextStyle(fontSize: 14.5, color: p.text, height: 1.45))),
+              ),
+              Positioned(
+                left: 12,
+                top: mq.padding.top + 10,
+                child: IconBtn('back', glass: true, color: Colors.white, label: 'Назад', onTap: () => Navigator.maybePop(context)),
+              ),
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 14,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(city.name,
+                      style: heading(28, weight: FontWeight.w800, color: Colors.white)
+                          .copyWith(shadows: const [Shadow(color: Color(0x99000000), blurRadius: 8)])),
+                  const SizedBox(height: 4),
+                  WeatherLine(city: city, light: true),
                 ]),
               ),
-              const SizedBox(height: 14),
+            ]),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Text(g.intro, style: TextStyle(fontSize: 15, color: p.text, height: 1.5)),
+              const SizedBox(height: 16),
+              if (city.places.isNotEmpty) ...[
+                const SectionTitle('Места с фото'),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 168,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: city.places.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 10),
+                    itemBuilder: (_, i) {
+                      final pl = city.places[i];
+                      return GestureDetector(
+                        onTap: () => push(context, PlacePhotoScreen(place: pl, hue: city.hue)),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: SizedBox(
+                            width: 150,
+                            child: Stack(fit: StackFit.expand, children: [
+                              WikiPhoto(title: pl.wiki, hue: city.hue, icon: city.icon),
+                              const DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [Color(0x00000000), Color(0xBB000000)],
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                left: 10,
+                                right: 10,
+                                bottom: 10,
+                                child: Text(pl.name,
+                                    maxLines: 2,
+                                    style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white, height: 1.25)),
+                              ),
+                            ]),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               block('Что посмотреть', 'eye', g.sights),
               block('Советы', 'help', g.tips),
               block('Как добраться', 'car', [g.road]),
@@ -988,6 +1213,303 @@ class GuideCityScreen extends StatelessWidget {
                 Navigator.of(context).popUntil((r) => r.isFirst);
                 toast(context, tr('Город в ленте: {c}', {'c': tr(city.name)}));
               }),
+              const SizedBox(height: 10),
+              OutlineBtn('Экскурсии и трансфер', icon: 'car', onPressed: () {
+                app.setCity(city.name);
+                Navigator.of(context).popUntil((r) => r.isFirst);
+                toast(context, 'Откройте «Услуги» → «Экскурсии» или «Трансфер и такси»');
+              }),
+              const SizedBox(height: 12),
+              Text('Фото: Википедия / Wikimedia Commons. Погода: Open-Meteo.',
+                  textAlign: TextAlign.center, style: TextStyle(fontSize: 11.5, color: p.muted)),
+            ]),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PlacePhotoScreen extends StatelessWidget {
+  const PlacePhotoScreen({super.key, required this.place, required this.hue});
+  final GuidePlace place;
+  final int hue;
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(children: [
+        Positioned.fill(
+          child: InteractiveViewer(child: Center(child: AspectRatio(aspectRatio: 4 / 3, child: WikiPhoto(title: place.wiki, big: true, hue: hue)))),
+        ),
+        Positioned(
+          left: 12,
+          top: mq.padding.top + 10,
+          child: IconBtn('back', glass: true, color: Colors.white, label: 'Назад', onTap: () => Navigator.maybePop(context)),
+        ),
+        Positioned(
+          left: 16,
+          right: 16,
+          bottom: 24 + mq.padding.bottom,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(place.name, style: heading(22, weight: FontWeight.w800, color: Colors.white)),
+            const SizedBox(height: 4),
+            GestureDetector(
+              onTap: () => openUrl(context, 'https://en.wikipedia.org/wiki/${Uri.encodeComponent(place.wiki)}', place.name),
+              child: const Text('Фото и статья — Википедия →', style: TextStyle(fontSize: 13, color: Color(0xCCFFFFFF))),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+class PhrasebookScreen extends StatelessWidget {
+  const PhrasebookScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+    final ru = appLang == 'ru' || appLang == 'uk';
+    return Scaffold(
+      body: Column(children: [
+        const SubHeader(title: 'Разговорник'),
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + MediaQuery.of(context).padding.bottom),
+            children: [
+              Text('Египетский арабский: самые нужные фразы. Нажмите на фразу, чтобы скопировать арабский текст и показать его собеседнику.',
+                  style: TextStyle(fontSize: 13.5, color: p.muted, height: 1.4)),
+              const SizedBox(height: 12),
+              for (final f in phrasebook) ...[
+                Box(
+                  padding: const EdgeInsets.all(12),
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: f[2]));
+                    toast(context, 'Скопировано');
+                  },
+                  child: Row(children: [
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(ru ? f[0] : f[1], style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: p.text)),
+                        const SizedBox(height: 2),
+                        Text(ru ? f[3] : f[4], style: TextStyle(fontSize: 13.5, color: p.accent, fontWeight: FontWeight.w600)),
+                      ]),
+                    ),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: w.Text(f[2],
+                          textDirection: TextDirection.rtl,
+                          textAlign: TextAlign.end,
+                          style: TextStyle(fontSize: 18, color: p.text, fontWeight: FontWeight.w600)),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ],
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class SeasonsScreen extends StatelessWidget {
+  const SeasonsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+    return Scaffold(
+      body: Column(children: [
+        const SubHeader(title: 'Погода по месяцам'),
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + MediaQuery.of(context).padding.bottom),
+            children: [
+              Text('Примерно для курортов Красного моря (Хургада, Шарм-эль-Шейх). В Каире зимой прохладнее, в Луксоре и Асуане летом жарче.',
+                  style: TextStyle(fontSize: 13.5, color: p.muted, height: 1.4)),
+              const SizedBox(height: 12),
+              for (final x in seasons) ...[
+                Box(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(x[0], style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: p.text)),
+                    const SizedBox(height: 6),
+                    Text('☀️ ${x[1]}', style: TextStyle(fontSize: 14, color: p.text2)),
+                    Text('🌊 ${x[2]}', style: TextStyle(fontSize: 14, color: p.text2)),
+                    const SizedBox(height: 6),
+                    Text(x[3], style: TextStyle(fontSize: 13.5, color: p.muted, height: 1.4)),
+                  ]),
+                ),
+                const SizedBox(height: 10),
+              ],
+            ],
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class ChecklistScreen extends StatefulWidget {
+  const ChecklistScreen({super.key});
+
+  @override
+  State<ChecklistScreen> createState() => _ChecklistScreenState();
+}
+
+class _ChecklistScreenState extends State<ChecklistScreen> {
+  Set<int> done = {};
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((pr) {
+      if (mounted) setState(() => done = (pr.getStringList('checklist') ?? []).map(int.parse).toSet());
+    }).catchError((_) {});
+  }
+
+  Future<void> toggle(int i) async {
+    setState(() => done.contains(i) ? done.remove(i) : done.add(i));
+    try {
+      final pr = await SharedPreferences.getInstance();
+      await pr.setStringList('checklist', done.map((e) => '$e').toList());
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+    final list = checklist;
+    return Scaffold(
+      body: Column(children: [
+        const SubHeader(title: 'Что взять с собой'),
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + MediaQuery.of(context).padding.bottom),
+            children: [
+              Text(tr('Собрано: {a} из {b}', {'a': done.length, 'b': list.length}),
+                  style: TextStyle(fontSize: 14, color: p.muted, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              for (var i = 0; i < list.length; i++) ...[
+                Box(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  onTap: () => toggle(i),
+                  child: Row(children: [
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: done.contains(i) ? p.accent : Colors.transparent,
+                        borderRadius: BorderRadius.circular(7),
+                        border: Border.all(color: done.contains(i) ? p.accent : p.line2, width: 2),
+                      ),
+                      child: done.contains(i) ? Center(child: Ico('check', size: 14, color: p.onPrimary, stroke: 2.8)) : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(list[i],
+                          style: TextStyle(
+                              fontSize: 14.5,
+                              color: done.contains(i) ? p.muted : p.text,
+                              decoration: done.contains(i) ? TextDecoration.lineThrough : null)),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ],
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class AppsScreen extends StatelessWidget {
+  const AppsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+    final ru = appLang == 'ru' || appLang == 'uk';
+    return Scaffold(
+      body: Column(children: [
+        const SubHeader(title: 'Полезные приложения'),
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + MediaQuery.of(context).padding.bottom),
+            children: [
+              for (final a in usefulApps) ...[
+                Box(
+                  padding: const EdgeInsets.all(12),
+                  onTap: () => openUrl(context, a[3], a[3]),
+                  child: Row(children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(color: p.sel, borderRadius: BorderRadius.circular(12)),
+                      child: Center(child: Text(a[0].substring(0, 1), style: heading(18, weight: FontWeight.w800, color: p.accent))),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(a[0], style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: p.text)),
+                        Text(ru ? a[1] : a[2], style: TextStyle(fontSize: 13, color: p.muted)),
+                      ]),
+                    ),
+                    Ico('chevron', size: 16, color: p.muted),
+                  ]),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ],
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class EmbassiesScreen extends StatelessWidget {
+  const EmbassiesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+    final ru = appLang == 'ru' || appLang == 'uk';
+    return Scaffold(
+      body: Column(children: [
+        const SubHeader(title: 'Посольства'),
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + MediaQuery.of(context).padding.bottom),
+            children: [
+              Text('Адреса, телефоны и часы приёма меняются — смотрите их на официальных сайтах. Посольства находятся в Каире, консульства есть и в курортных городах.',
+                  style: TextStyle(fontSize: 13.5, color: p.muted, height: 1.4)),
+              const SizedBox(height: 12),
+              for (final e in embassies) ...[
+                Box(
+                  padding: const EdgeInsets.all(12),
+                  onTap: () => openUrl(context, e[2], e[2]),
+                  child: Row(children: [
+                    Ico('shield', size: 20, color: p.accent),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(ru ? e[0] : e[1], style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: p.text)),
+                        Text(Uri.parse(e[2]).host, style: TextStyle(fontSize: 12.5, color: p.muted)),
+                      ]),
+                    ),
+                    Ico('chevron', size: 16, color: p.muted),
+                  ]),
+                ),
+                const SizedBox(height: 8),
+              ],
             ],
           ),
         ),
@@ -1667,7 +2189,7 @@ Future<void> deleteAccountFlow(BuildContext context) async {
 // Новости
 // =====================================================================
 
-const _newsTags = ['Важно', 'Визы', 'Безопасность', 'События', 'Курс', 'Сервис'];
+const _newsTags = ['Важно', 'Визы', 'Безопасность', 'События', 'Курс', 'Сервис', 'Туризм'];
 const _tagHue = {
   'Визы': 0xFF6366F1,
   'Курс': 0xFF14B8A6,
@@ -1675,8 +2197,10 @@ const _tagHue = {
   'Важно': 0xFFF43F5E,
   'Безопасность': 0xFFF97316,
   'Сервис': 0xFF3B82F6,
+  'Туризм': 0xFF14B8A6,
+  'Новости': 0xFF64748B,
 };
-const _tagIcon = {'Визы': 'doc', 'Курс': 'coin', 'События': 'people', 'Важно': 'alert', 'Безопасность': 'shield', 'Сервис': 'pyramid'};
+const _tagIcon = {'Визы': 'doc', 'Курс': 'coin', 'События': 'people', 'Важно': 'alert', 'Безопасность': 'shield', 'Сервис': 'pyramid', 'Туризм': 'sun', 'Новости': 'news'};
 
 class NewsTab extends StatelessWidget {
   const NewsTab({super.key});
@@ -1685,11 +2209,13 @@ class NewsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
     final p = Pal.of(context);
-    final list = app.news.where((n) => n.published || app.isAdmin).toList();
+    // автоматические новости — на языке пользователя (русский для ru/uk, английский для остальных)
+    final group = (app.lang == 'ru' || app.lang == 'uk') ? 'ru' : 'en';
+    final list = app.news.where((n) => (n.published || app.isAdmin) && (n.lang == null || n.lang == group)).toList();
     return UnderBar(
       bar: GlassBar(
         title: 'Новости',
-        subtitle: 'Важное для своих в Египте',
+        subtitle: 'Обновляется автоматически',
         trailing: app.isAdmin ? IconBtn('plus', glass: true, label: 'Добавить новость', onTap: () => editNews(context)) : null,
       ),
       onRefresh: app.loadNews,
@@ -1709,7 +2235,7 @@ class NewsTab extends StatelessWidget {
                 final hue = Color(_tagHue[n.tag] ?? 0xFF14B8A6);
                 return Box(
                   padding: const EdgeInsets.all(14),
-                  onTap: () => push(context, NewsDetailScreen(item: n)),
+                  onTap: () => n.auto && n.url != null ? openUrl(context, n.url!, n.url!) : push(context, NewsDetailScreen(item: n)),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Container(
                       width: 48,
@@ -1725,13 +2251,26 @@ class NewsTab extends StatelessWidget {
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Row(children: [
                           Text(n.tag, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color.lerp(hue, p.text, p.dark ? .25 : 0))),
-                          Text('  ·  ${dateText(n.date)}', style: TextStyle(fontSize: 12.5, color: p.muted)),
+                          Flexible(
+                            child: Text('  ·  ${n.source != null ? '${n.source} · ' : ''}${agoText(n.date)}',
+                                maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: p.muted)),
+                          ),
                           if (!n.published) Text('  ·  ${tr('черновик')}', style: TextStyle(fontSize: 12.5, color: p.warn)),
                         ]),
                         const SizedBox(height: 4),
                         Text(n.title, style: heading(16, weight: FontWeight.w800, color: p.text)),
                         const SizedBox(height: 4),
-                        Text(n.body, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: p.text2, height: 1.45)),
+                        if (n.body.isNotEmpty)
+                          Text(n.body, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: p.text2, height: 1.45)),
+                        if (n.auto) ...[
+                          const SizedBox(height: 2),
+                          Text('Читать полностью →', style: TextStyle(fontSize: 12.5, color: p.accent, fontWeight: FontWeight.w600)),
+                        ],
+                        if (n.auto && app.isAdmin)
+                          GestureDetector(
+                            onTap: () => editNews(context, item: n),
+                            child: Text('Изменить или скрыть (админ)', style: TextStyle(fontSize: 12, color: p.muted)),
+                          ),
                       ]),
                     ),
                   ]),

@@ -233,15 +233,24 @@ class Profile {
 
 /// Новость из админки.
 class NewsPost {
-  NewsPost({required this.id, required this.tag, required this.title, required this.body, required this.date, this.published = true});
+  NewsPost({required this.id, required this.tag, required this.title, required this.body, required this.date, this.published = true,
+      this.source, this.url, this.lang, this.auto = false});
   factory NewsPost.fromMap(Map m) => NewsPost(
         id: (m['id'] as num).toInt(),
         tag: (m['tag'] ?? '') as String,
         title: (m['title'] ?? '') as String,
         body: (m['body'] ?? '') as String,
         published: (m['published'] ?? true) as bool,
+        source: m['source'] as String?,
+        url: m['url'] as String?,
+        lang: m['lang'] as String?,
+        auto: (m['auto'] ?? false) as bool,
         date: DateTime.tryParse((m['created_at'] ?? '') as String) ?? DateTime.now(),
       );
+  final String? source;
+  final String? url;
+  final String? lang;
+  final bool auto;
   final int id;
   final String tag;
   final String title;
@@ -711,7 +720,10 @@ class AppState extends ChangeNotifier {
       return;
     }
     touchOnline();
-    _presence ??= Timer.periodic(const Duration(seconds: 60), (_) => touchOnline());
+    _presence ??= Timer.periodic(const Duration(seconds: 60), (t) {
+      touchOnline();
+      if (t.tick % 30 == 0) loadNews(); // новости — раз в полчаса
+    });
     _listenInbox();
     loadSavedSearches();
     await Future.wait([loadProfile(), loadFavorites(), loadMyPosts(), loadThreads(), loadMyVerification(), loadBlocks()]);
@@ -1010,7 +1022,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> loadNews() async {
     try {
-      final rows = await sb.from('news').select().order('created_at', ascending: false).limit(50);
+      final rows = await sb.from('news').select().order('created_at', ascending: false).limit(120);
       news = rows.map<NewsPost>((m) => NewsPost.fromMap(m)).toList();
     } catch (_) {}
     newsLoaded = true;
@@ -1521,7 +1533,18 @@ const demoDirectory = <DirItem>[
   DirItem('Скорая помощь', 'Вся страна, бесплатно', '123'),
   DirItem('Полиция', 'Вся страна', '122'),
   DirItem('Туристическая полиция', 'Вся страна', '126'),
+  DirItem('Пожарная служба', 'Вся страна', '180'),
+  DirItem('Аварийная газовая служба', 'Утечка газа', '129'),
+  DirItem('Аварийная служба электросетей', 'Нет света, обрыв провода', '121'),
 ];
+
+/// «5 мин назад», «3 ч назад», дальше — дата.
+String agoText(DateTime d) {
+  final diff = DateTime.now().difference(d.toLocal());
+  if (diff.inMinutes < 60) return tr('{n} мин назад', {'n': diff.inMinutes.clamp(1, 59)});
+  if (diff.inHours < 24) return tr('{n} ч назад', {'n': diff.inHours});
+  return dateText(d);
+}
 
 // ---------- Онлайн-статус ----------
 

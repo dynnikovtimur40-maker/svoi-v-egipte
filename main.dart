@@ -3440,7 +3440,7 @@ class MoreTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Pal.of(context);
     return UnderBar(
-      bar: const GlassBar(title: 'Полезное', subtitle: 'Курс валют и важные номера'),
+      bar: const GlassBar(title: 'Полезное', subtitle: 'Курс, важные номера и всё для туриста'),
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
@@ -3482,8 +3482,12 @@ class MoreTab extends StatelessWidget {
                   ]),
                 ),
             ]),
+            const SizedBox(height: 18),
+            const SectionTitle('Для туриста'),
+            const SizedBox(height: 8),
+            const TouristTiles(withGuide: true),
             const SizedBox(height: 20),
-            Center(child: Text('Свои в Египте · версия 0.4', style: TextStyle(fontSize: 12.5, color: p.muted))),
+            Center(child: Text('Свои в Египте · версия 0.5', style: TextStyle(fontSize: 12.5, color: p.muted))),
           ]),
         ),
       ],

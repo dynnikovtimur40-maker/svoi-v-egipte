@@ -27,7 +27,7 @@ function tag(x: string, name: string): string {
 function classify(t: string, lang: string): string {
   const s = t.toLowerCase();
   if (/(виз|visa|въезд|паспорт|границ|entry)/.test(s)) return "Визы";
-  if (/(курс|фунт|доллар|рубл|exchange|pound|currency|цен)/.test(s)) return "Курс";
+  if (/(курс|фунт|exchange rate|pound|currency)/.test(s)) return "Курс";
   if (/(безопасн|мошенн|предупрежд|акул|shark|scam|warning|safety|шторм|storm)/.test(s)) return "Безопасность";
   if (/(рейс|авиа|flight|airline|аэропорт|airport)/.test(s)) return "Туризм";
   if (/(турист|отел|курорт|отдых|tourist|hotel|resort|travel|пляж|beach)/.test(s)) return "Туризм";

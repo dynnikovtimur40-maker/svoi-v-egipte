@@ -12,6 +12,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   image: ^4.2.0
+  http: ^1.2.2
   supabase_flutter: ^2.8.0
   google_fonts: ^6.2.1
   image_picker: ^1.1.2
