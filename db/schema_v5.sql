@@ -259,13 +259,13 @@ begin
 
   -- признаки для модератора
   if body ~ '(предоплат|передоплат|prepay|western union|usdt|bitcoin|биткоин|крипт|crypto|инвестиц|investment|гарантированн|100% доход)' then
-    flags := flags || 'предоплата/крипта/инвестиции';
+    flags := array_append(flags, 'предоплата/крипта/инвестиции');
   end if;
   if coalesce(new.title, '') ~ '[A-ZА-ЯЁ]{10,}' or body ~ '(.)\1{6,}' then
-    flags := flags || 'капс/повторы';
+    flags := array_append(flags, 'капс/повторы');
   end if;
   if new.price_egp is not null and new.price_egp > 50000000 then
-    flags := flags || 'странная цена';
+    flags := array_append(flags, 'странная цена');
   end if;
 
   if tg_op = 'INSERT' then

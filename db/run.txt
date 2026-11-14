@@ -1,1 +1,1 @@
-db/diag.sql
+db/schema_v5.sql
