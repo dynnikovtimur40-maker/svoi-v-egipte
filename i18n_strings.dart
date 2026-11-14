@@ -630,4 +630,5 @@ const Map<String, List<String>> kTr = {
   'Ваш аккаунт заблокирован за нарушение правил.': ['Your account is blocked for breaking the rules.', 'Ваш акаунт заблоковано за порушення правил.', 'تم حظر حسابك لمخالفة القواعد.', 'Ihr Konto wurde wegen Regelverstößen gesperrt.'],
   'Не больше 10 подписок. Удалите ненужные в профиле.': ['No more than 10 saved searches. Delete unneeded ones in your profile.', 'Не більше 10 підписок. Видаліть зайві в профілі.', 'لا يزيد عن 10 اشتراكات. احذف غير الضروري من ملفك.', 'Höchstens 10 Abos. Löschen Sie unnötige im Profil.'],
   'Аккаунт заблокирован за нарушения': ['Account blocked for violations', 'Акаунт заблоковано за порушення', 'الحساب محظور بسبب المخالفات', 'Konto wegen Verstößen gesperrt'],
+  'Новые': ['New', 'Нові', 'جديدة', 'Neu'],
 };

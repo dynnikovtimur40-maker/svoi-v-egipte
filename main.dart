@@ -5621,7 +5621,7 @@ class _ModerationScreenState extends State<ModerationScreen> {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Segments<int>(
             values: const [0, 1, 2, 3],
-            labels: ['${tr('Проверка')} (${pending.length})', '${tr('Жалобы')} (${reports.length})', tr('Люди'), tr('Ещё')],
+            labels: ['${tr('Новые')} (${pending.length})', '${tr('Жалобы')} (${reports.length})', tr('Люди'), tr('Ещё')],
             selected: tab,
             onChanged: (v) => setState(() => tab = v),
           ),
