@@ -53,20 +53,20 @@ class HomeTab extends StatelessWidget {
     final news = app.news.where((n) => n.published && (n.lang == null || n.lang == group)).take(4).toList();
     final fresh = app.posts.where((x) => app.city == cities.first || x.city == app.city).take(4).toList();
 
-    // [иконка, название, действие]
-    final actions = <(String, String, VoidCallback)>[
-      ('tag', 'Объявления', () => openTab(0)),
-      ('tool', 'Услуги', () => openTab(1)),
-      ('bag', 'Работа', () => openTab(2)),
-      ('news', 'Новости', () => openTab(3)),
-      ('alert', 'SOS', () => push(context, const SosScreen())),
-      ('coin', 'Цены', () => push(context, const FairPricesScreen())),
-      ('pyramid', 'Путеводитель', () => push(context, const GuideScreen())),
-      ('gift', 'Скидки', () => push(context, const PromosScreen())),
-      ('shield', 'Проверенные', () => push(context, const TrustedScreen())),
-      ('pin', 'Рядом', () => push(context, const NearbyScreen())),
-      ('chat', 'Разговорник', () => push(context, const PhrasebookScreen())),
-      ('grid', 'Полезное', () => openTab(4)),
+    // [иконка, название, цвета градиента, действие]
+    final actions = <(String, String, List<int>, VoidCallback)>[
+      ('tag', 'Объявления', [0xFF34D399, 0xFF0D9488], () => openTab(0)),
+      ('tool', 'Услуги', [0xFF60A5FA, 0xFF2563EB], () => openTab(1)),
+      ('bag', 'Работа', [0xFFFCD34D, 0xFFF59E0B], () => openTab(2)),
+      ('news', 'Новости', [0xFFA78BFA, 0xFF7C3AED], () => openTab(3)),
+      ('alert', 'SOS', [0xFFFB7185, 0xFFE11D48], () => push(context, const SosScreen())),
+      ('coin', 'Цены', [0xFF86EFAC, 0xFF16A34A], () => push(context, const FairPricesScreen())),
+      ('pyramid', 'Путеводитель', [0xFFFDBA74, 0xFFEA580C], () => push(context, const GuideScreen())),
+      ('gift', 'Скидки', [0xFFF9A8D4, 0xFFDB2777], () => push(context, const PromosScreen())),
+      ('shield', 'Проверенные', [0xFF67E8F9, 0xFF0891B2], () => push(context, const TrustedScreen())),
+      ('pin', 'Рядом', [0xFF7DD3FC, 0xFF0284C7], () => push(context, const NearbyScreen())),
+      ('chat', 'Разговорник', [0xFFC4B5FD, 0xFF8B5CF6], () => push(context, const PhrasebookScreen())),
+      ('grid', 'Полезное', [0xFFCBD5E1, 0xFF64748B], () => openTab(4)),
     ];
 
     return UnderBar(
@@ -122,39 +122,22 @@ class HomeTab extends StatelessWidget {
               ]),
             ),
             const SizedBox(height: 14),
-            // Быстрый доступ
-            GridView.count(
-              crossAxisCount: 4,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              childAspectRatio: .95,
-              children: [
-                for (final a in actions)
-                  Box(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                    radius: 16,
-                    onTap: a.$3,
-                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                            color: a.$2 == 'SOS' ? p.bad.withAlpha(36) : p.sel, borderRadius: BorderRadius.circular(12)),
-                        child: Center(child: Ico(a.$1, size: 19, color: a.$2 == 'SOS' ? p.bad : p.accent)),
-                      ),
-                      const SizedBox(height: 6),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(a.$2,
-                            maxLines: 1,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: p.text)),
-                      ),
-                    ]),
-                  ),
-              ],
+            // Быстрый доступ — иконки в стиле iOS на стеклянной панели
+            Glass(
+              radius: 28,
+              opacity: p.dark ? .38 : .55,
+              blur: 26,
+              padding: const EdgeInsets.fromLTRB(8, 16, 8, 6),
+              child: GridView.count(
+                crossAxisCount: 4,
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 6,
+                crossAxisSpacing: 4,
+                childAspectRatio: .84,
+                children: [for (final a in actions) QuickIcon(icon: a.$1, label: a.$2, colors: a.$3, onTap: a.$4)],
+              ),
             ),
             // Новости
             SectionTitle('Новости', action: 'Все', onAction: () => openTab(3)),
@@ -184,6 +167,81 @@ class HomeTab extends StatelessWidget {
           ]),
         ),
       ],
+    );
+  }
+}
+
+/// Иконка быстрого доступа: «сквиркл» с градиентом и бликом, как на экране iPhone.
+class QuickIcon extends StatefulWidget {
+  const QuickIcon({super.key, required this.icon, required this.label, required this.colors, required this.onTap});
+  final String icon, label;
+  final List<int> colors;
+  final VoidCallback onTap;
+
+  @override
+  State<QuickIcon> createState() => _QuickIconState();
+}
+
+class _QuickIconState extends State<QuickIcon> {
+  bool down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+    final c1 = Color(widget.colors[0]), c2 = Color(widget.colors[1]);
+    const size = 58.0;
+    final shape = ContinuousRectangleBorder(
+      borderRadius: BorderRadius.circular(size * .5),
+      side: const BorderSide(color: Color(0x40FFFFFF), width: .8),
+    );
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => setState(() => down = true),
+      onTapCancel: () => setState(() => down = false),
+      onTapUp: (_) => setState(() => down = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: down ? .9 : 1,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: size,
+            height: size,
+            decoration: ShapeDecoration(
+              shape: shape,
+              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [c1, c2]),
+              shadows: [
+                BoxShadow(color: c2.withAlpha(p.dark ? 110 : 80), blurRadius: 16, offset: const Offset(0, 6)),
+              ],
+            ),
+            child: Stack(children: [
+              // стеклянный блик сверху
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: ShapeDecoration(
+                    shape: shape.copyWith(side: BorderSide.none),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.center,
+                      colors: [Color(0x59FFFFFF), Color(0x00FFFFFF)],
+                    ),
+                  ),
+                ),
+              ),
+              Center(child: Ico(widget.icon, size: 27, color: Colors.white, stroke: 2.1)),
+            ]),
+          ),
+          const SizedBox(height: 7),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(widget.label,
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: p.text, letterSpacing: -.1)),
+          ),
+        ]),
+      ),
     );
   }
 }
