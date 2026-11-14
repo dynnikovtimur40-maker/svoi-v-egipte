@@ -15,6 +15,7 @@ jobs:
       PROJECT: pjjeypdxwnbtyqabhroi
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+      TELEGRAM_CHANNEL_ID: ''
       PAYMOB_SECRET_KEY: ${{ secrets.PAYMOB_SECRET_KEY }}
       PAYMOB_PUBLIC_KEY: ${{ secrets.PAYMOB_PUBLIC_KEY }}
       PAYMOB_INTEGRATION_IDS: ${{ secrets.PAYMOB_INTEGRATION_IDS }}
@@ -52,7 +53,7 @@ jobs:
       - name: Set function secrets
         if: steps.chk.outputs.ok == '1'
         run: |
-          for k in TELEGRAM_BOT_TOKEN TELEGRAM_ADMIN_CHAT_ID PAYMOB_SECRET_KEY PAYMOB_PUBLIC_KEY PAYMOB_INTEGRATION_IDS PAYMOB_HMAC RESEND_API_KEY MAIL_FROM; do
+          for k in TELEGRAM_BOT_TOKEN TELEGRAM_ADMIN_CHAT_ID TELEGRAM_CHANNEL_ID PAYMOB_SECRET_KEY PAYMOB_PUBLIC_KEY PAYMOB_INTEGRATION_IDS PAYMOB_HMAC RESEND_API_KEY MAIL_FROM; do
             v="${!k}"
             if [ -n "$v" ]; then
               if out=$(supabase secrets set --yes --project-ref "$PROJECT" "$k=$v" 2>&1); then echo "set $k"

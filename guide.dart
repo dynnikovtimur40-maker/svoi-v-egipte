@@ -364,3 +364,77 @@ const embassies = <List<String>>[
   ['Посольство Беларуси', 'Embassy of Belarus', 'https://egypt.mfa.gov.by/'],
   ['Посольство Казахстана', 'Embassy of Kazakhstan', 'https://www.gov.kz/memleket/entities/mfa-cairo'],
 ];
+
+/// Ориентир «честной» цены в фунтах (EGP): нормальная вилка min–max.
+class FairPrice {
+  const FairPrice(this.ru, this.en, this.min, this.max, {this.noteRu = '', this.noteEn = ''});
+  final String ru, en;
+  final int min, max;
+  final String noteRu, noteEn;
+}
+
+/// Дата проверки цен — показывается в приложении.
+const fairPricesUpdated = 'ноябрь 2026';
+
+/// [группа ru, группа en, позиции] — Хургада и курорты Красного моря, ноябрь 2026.
+const fairPrices = <(String, String, List<FairPrice>)>[
+  ('Такси и транспорт', 'Taxi and transport', [
+    FairPrice('Uber / Careem по городу', 'Uber / Careem within the city', 60, 150),
+    FairPrice('Такси с улицы по городу', 'Street taxi within the city', 100, 250,
+        noteRu: 'Цену называйте сами и до посадки', noteEn: 'Agree the price before you get in'),
+    FairPrice('Аэропорт → центр Хургады', 'Airport → Hurghada centre', 170, 350,
+        noteRu: 'В приложении ≈170–200, на стоянке просят 400+', noteEn: 'Apps ≈170–200, the taxi rank asks 400+'),
+    FairPrice('Аэропорт → Сахл-Хашиш / Макади', 'Airport → Sahl Hasheesh / Makadi', 450, 900),
+    FairPrice('Аэропорт → Эль-Гуна', 'Airport → El Gouna', 600, 1000),
+    FairPrice('Маршрутка (микроавтобус)', 'Minibus (marshrutka)', 10, 25),
+  ]),
+  ('Еда и напитки', 'Food and drinks', [
+    FairPrice('Вода 1,5 л в магазине', 'Water 1.5 L in a shop', 10, 25,
+        noteRu: 'У пляжа и в отеле дороже', noteEn: 'More expensive at the beach or hotel'),
+    FairPrice('Чай в кафе', 'Tea in a café', 15, 40),
+    FairPrice('Кофе по-турецки', 'Turkish coffee', 20, 50),
+    FairPrice('Капучино в кофейне', 'Cappuccino in a coffee shop', 60, 130),
+    FairPrice('Свежевыжатый сок', 'Fresh juice', 30, 70),
+    FairPrice('Фалафель (таамия), сэндвич', 'Falafel (taameya) sandwich', 10, 30),
+    FairPrice('Кошари, порция', 'Koshari, one bowl', 30, 75),
+    FairPrice('Шаурма', 'Shawarma', 60, 130),
+    FairPrice('Обед в местном кафе на одного', 'Lunch at a local café, per person', 150, 400),
+    FairPrice('Ужин в туристическом ресторане', 'Dinner at a tourist restaurant', 500, 1200),
+    FairPrice('Кальян в кафе', 'Shisha in a café', 80, 250),
+    FairPrice('Пиво в ресторане', 'Beer in a restaurant', 80, 160),
+  ]),
+  ('Экскурсии (с человека)', 'Tours (per person)', [
+    FairPrice('Острова Гифтун / Махмья на катере', 'Giftun / Mahmya islands by boat', 900, 1800),
+    FairPrice('Морская прогулка со снорклингом', 'Boat trip with snorkelling', 800, 1600),
+    FairPrice('Сафари на квадроциклах (полдня)', 'Quad bike safari (half day)', 900, 1800),
+    FairPrice('Дайвинг: 2 погружения с лодки', 'Diving: 2 boat dives', 2500, 3800),
+    FairPrice('Луксор на 1 день из Хургады', 'Luxor day trip from Hurghada', 2500, 4500),
+    FairPrice('Каир на 1 день из Хургады', 'Cairo day trip from Hurghada', 3000, 5000),
+    FairPrice('Билет к пирамидам Гизы', 'Giza pyramids ticket', 700, 700,
+        noteRu: 'Официальная цена, оплата картой в кассе', noteEn: 'Official price, card payment at the desk'),
+  ]),
+  ('Сувениры (после торга)', 'Souvenirs (after haggling)', [
+    FairPrice('Папирус с рисунком', 'Papyrus painting', 150, 300,
+        noteRu: 'Сначала просят 800+', noteEn: 'They first ask 800+'),
+    FairPrice('Фигурка из алебастра (небольшая)', 'Small alabaster figurine', 150, 400),
+    FairPrice('Футболка с принтом', 'Printed T-shirt', 150, 350),
+    FairPrice('Специи, пакетик ~100 г', 'Spices, ~100 g bag', 40, 120),
+    FairPrice('Каркаде, 100 г', 'Hibiscus tea, 100 g', 30, 90),
+  ]),
+  ('Чаевые', 'Tips', [
+    FairPrice('Носильщику за чемодан', 'Porter, per suitcase', 20, 50),
+    FairPrice('Горничной за день', 'Housekeeping, per day', 20, 50),
+    FairPrice('Гиду за экскурсию (с человека)', 'Tour guide (per person)', 50, 150),
+  ]),
+];
+
+/// Фразы на экстренный случай: [ru, en, арабский, транскрипция ru, транскрипция en]
+const sosPhrases = <List<String>>[
+  ['Помогите!', 'Help!', 'الحقوني!', 'Альхаууни!', 'Alhaooni!'],
+  ['Вызовите скорую', 'Call an ambulance', 'اطلب الإسعاف', 'Утлуб иль-исаф', 'Otlob el-esaaf'],
+  ['Мне нужен врач', 'I need a doctor', 'محتاج دكتور', 'Мухтаг доктур', 'Mehtag doktor'],
+  ['Где больница?', 'Where is the hospital?', 'فين المستشفى؟', 'Фейн иль-мустáшфа?', 'Fein el-mostashfa?'],
+  ['Вызовите полицию', 'Call the police', 'اطلب البوليس', 'Утлуб иль-булис', 'Otlob el-bolees'],
+  ['Я потерял паспорт', 'I lost my passport', 'ضاع مني الباسبور', 'Да минни иль-баспор', 'Daa menni el-basbor'],
+  ['Отвезите меня в отель', 'Take me to my hotel', 'وديني الفندق', 'Веддини иль-фундук', 'Waddini el-fondoq'],
+];

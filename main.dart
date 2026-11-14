@@ -16,6 +16,7 @@ import 'config.dart';
 import 'data.dart';
 import 'features.dart';
 import 'i18n.dart';
+import 'tourist.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1636,8 +1637,11 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                OutlineBtn('Пропустить, просто посмотреть',
+                OutlineBtn('Открыть без регистрации',
                     height: 50, color: p.text, onPressed: () => AppScope.of(context).setGuest(true)),
+                const SizedBox(height: 8),
+                Text('Путеводитель, честные цены, SOS и объявления — без аккаунта',
+                    textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: p.muted)),
               ]),
             ),
           ),
@@ -1916,6 +1920,14 @@ class AppDrawer extends StatelessWidget {
                 item('pyramid', 'Путеводитель', onTap: () {
                   close();
                   push(context, const GuideScreen());
+                }),
+                item('coin', 'Честные цены', onTap: () {
+                  close();
+                  push(context, const FairPricesScreen());
+                }),
+                item('alert', 'SOS', onTap: () {
+                  close();
+                  push(context, const SosScreen());
                 }),
                 label('Личный кабинет'),
                 item('doc', 'Мои объявления',
@@ -3445,6 +3457,10 @@ class MoreTab extends StatelessWidget {
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
           sliver: SliverList.list(children: [
+            const SectionTitle('Для туриста'),
+            const SizedBox(height: 8),
+            const TouristTiles(withGuide: true),
+            const SizedBox(height: 14),
             const ConverterCard(),
             const SizedBox(height: 6),
             const SectionTitle('Справочник'),
@@ -3482,12 +3498,8 @@ class MoreTab extends StatelessWidget {
                   ]),
                 ),
             ]),
-            const SizedBox(height: 18),
-            const SectionTitle('Для туриста'),
-            const SizedBox(height: 8),
-            const TouristTiles(withGuide: true),
             const SizedBox(height: 20),
-            Center(child: Text('Свои в Египте · версия 0.5', style: TextStyle(fontSize: 12.5, color: p.muted))),
+            Center(child: Text('Свои в Египте · версия 0.6', style: TextStyle(fontSize: 12.5, color: p.muted))),
           ]),
         ),
       ],

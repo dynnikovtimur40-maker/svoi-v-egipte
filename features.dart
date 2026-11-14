@@ -16,6 +16,7 @@ import 'data.dart';
 import 'guide.dart';
 import 'i18n.dart';
 import 'main.dart';
+import 'tourist.dart';
 
 // =====================================================================
 // Язык
@@ -939,6 +940,11 @@ class TouristTiles extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Pal.of(context);
     final tiles = <List<Object>>[
+      ['alert', 'SOS', 'Экстренные номера', const SosScreen()],
+      ['coin', 'Честные цены', 'Сколько что стоит', const FairPricesScreen()],
+      ['shield', 'Проверенные', 'Гиды, трансфер, дайвинг', const TrustedScreen()],
+      ['pin', 'Рядом со мной', 'Аптека, обменник, банкомат', const NearbyScreen()],
+      ['gift', 'Скидки', 'От партнёров', const PromosScreen()],
       if (withGuide) ['pyramid', 'Путеводитель', 'Города и места', const GuideScreen()],
       ['help', 'Советы туристу', 'Виза, деньги, такси', const GuideBasicsScreen()],
       ['chat', 'Разговорник', 'Арабский для туриста', const PhrasebookScreen()],
@@ -963,8 +969,9 @@ class TouristTiles extends StatelessWidget {
               Container(
                 width: 34,
                 height: 34,
-                decoration: BoxDecoration(color: p.sel, borderRadius: BorderRadius.circular(10)),
-                child: Center(child: Ico(t[0] as String, size: 18, color: p.accent)),
+                decoration: BoxDecoration(
+                    color: t[1] == 'SOS' ? p.bad.withAlpha(36) : p.sel, borderRadius: BorderRadius.circular(10)),
+                child: Center(child: Ico(t[0] as String, size: 18, color: t[1] == 'SOS' ? p.bad : p.accent)),
               ),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(t[1] as String, maxLines: 1, overflow: TextOverflow.ellipsis,

@@ -103,9 +103,34 @@ Deno.serve(async (req) => {
   if (add.length) {
     const { error } = await base.from("news").insert(add);
     if (error) errors.push(error.message);
+    else await postToChannel(add.filter((n) => n.lang === "ru").slice(0, 3), errors);
   }
   // старые автоматические новости убираем
   await base.from("news").delete().eq("auto", true).lt("created_at", new Date(Date.now() - 21 * 24 * 3600 * 1000).toISOString());
   await base.from("bot_log").insert({ kind: "news-sync", detail: `added=${add.length} errors=${errors.join(" | ").slice(0, 300)}` });
   return json({ added: add.length, errors });
 });
+
+/** Автопостинг свежих новостей в Telegram-канал (если задан TELEGRAM_CHANNEL_ID и бот — админ канала). */
+async function postToChannel(items: Record<string, unknown>[], errors: string[]) {
+  const token = Deno.env.get("TELEGRAM_BOT_TOKEN");
+  const channel = Deno.env.get("TELEGRAM_CHANNEL_ID");
+  if (!token || !channel || !items.length) return;
+  const app = "https://dynnikovtimur40-maker.github.io/svoi-v-egipte/";
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  for (const n of items) {
+    const text = `📰 <b>${esc(String(n.title))}</b>\n` + (n.source ? `<i>${esc(String(n.source))}</i>\n` : "") +
+      `\n<a href="${esc(String(n.url))}">Читать полностью</a>\n\n` +
+      `🇪🇬 Всё для туриста в Египте — честные цены, SOS, гиды: <a href="${app}">Свои в Египте</a>`;
+    try {
+      const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: channel, text, parse_mode: "HTML", disable_web_page_preview: false }),
+      });
+      if (!r.ok) errors.push(`channel ${r.status}: ${(await r.text()).slice(0, 120)}`);
+    } catch (e) {
+      errors.push(`channel: ${e}`);
+    }
+  }
+}

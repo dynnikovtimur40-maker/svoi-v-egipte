@@ -598,6 +598,7 @@ class AppState extends ChangeNotifier {
       }
       final c = p.getString('city');
       if (c != null && cities.contains(c)) city = c;
+      if (p.getBool('guest') == true) guest = true;
       notifyListeners();
     } catch (_) {}
   }
@@ -651,6 +652,7 @@ class AppState extends ChangeNotifier {
   void setGuest(bool v) {
     guest = v;
     notifyListeners();
+    SharedPreferences.getInstance().then((p) => p.setBool('guest', v)).catchError((_) => true);
   }
 
   // ---------- Загрузка ----------
