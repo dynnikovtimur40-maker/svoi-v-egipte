@@ -17,6 +17,7 @@ import 'data.dart';
 import 'features.dart';
 import 'home.dart';
 import 'i18n.dart';
+import 'realty.dart';
 import 'tourist.dart';
 
 Future<void> main() async {
@@ -165,6 +166,7 @@ const sectionHue = {
   Section.ads: 0xFF14B8A6,
   Section.services: 0xFFF59E0B,
   Section.jobs: 0xFF6366F1,
+  Section.realty: 0xFF0EA5E9,
 };
 
 Color withAlpha(int argb, double a) =>
@@ -311,6 +313,11 @@ const catIcon = {
   'IT и компьютеры': 'laptop',
   'Няни': 'people',
   'Отели и рестораны': 'bag',
+  'Аренда на месяц': 'home',
+  'Посуточно': 'calendar',
+  'Продажа': 'key',
+  'Ищу жильё': 'search',
+  'Риелторы и услуги': 'people',
 };
 
 String iconForPost(Post p) {
@@ -323,6 +330,8 @@ String iconForPost(Post p) {
       return 'tool';
     case Section.jobs:
       return 'bag';
+    case Section.realty:
+      return 'home';
   }
 }
 
@@ -1853,7 +1862,10 @@ class _HomeShellState extends State<HomeShell> {
           tab = i;
           _opened.add(i);
         })),
+    const ListTab(section: Section.realty), // 6
   ];
+
+  static const _tabSection = {0: Section.ads, 1: Section.services, 2: Section.jobs, 6: Section.realty};
 
   void openAdd() {
     final app = AppScope.of(context);
@@ -1861,7 +1873,7 @@ class _HomeShellState extends State<HomeShell> {
       askLogin(context, 'Чтобы разместить объявление, войдите или зарегистрируйтесь — это займёт минуту.');
       return;
     }
-    push(context, AddPostScreen(section: Section.values[tab]));
+    push(context, AddPostScreen(section: _tabSection[tab] ?? Section.ads));
   }
 
   @override
@@ -1884,7 +1896,7 @@ class _HomeShellState extends State<HomeShell> {
             if (_opened.contains(i) || i == tab) TickerMode(enabled: i == tab, child: pages[i]) else const SizedBox.shrink(),
         ]),
       ),
-      floatingActionButton: tab <= 2
+      floatingActionButton: _tabSection.containsKey(tab)
           ? Container(
               height: 52,
               decoration: BoxDecoration(
@@ -2121,11 +2133,17 @@ class AppDrawer extends StatelessWidget {
                   onSelect(5);
                   close();
                 }),
-                for (var i = 0; i < sections.length; i++)
+                for (var i = 0; i < sections.length; i++) ...[
                   item(sections[i][1], sections[i][0], selected: tab == i, onTap: () {
                     onSelect(i);
                     close();
                   }),
+                  if (i == 0)
+                    item('home', 'Недвижимость', selected: tab == 6, onTap: () {
+                      onSelect(6);
+                      close();
+                    }),
+                ],
                 item('pyramid', 'Путеводитель', onTap: () {
                   close();
                   push(context, const GuideScreen());
@@ -2385,7 +2403,12 @@ class _ListTabState extends State<ListTab> {
       ..sort = filters.sort
       ..priceFrom = filters.priceFrom
       ..priceTo = filters.priceTo
-      ..verifiedOnly = filters.verifiedOnly;
+      ..verifiedOnly = filters.verifiedOnly
+      ..rooms = filters.rooms
+      ..furnished = filters.furnished
+      ..pool = filters.pool
+      ..nearSea = filters.nearSea
+      ..pets = filters.pets;
     final from = TextEditingController(text: filters.priceFrom?.toString() ?? '');
     final to = TextEditingController(text: filters.priceTo?.toString() ?? '');
     final ok = await showGlassSheet<bool>(
@@ -2427,6 +2450,8 @@ class _ListTabState extends State<ListTab> {
                     tmp.priceFrom = null;
                     tmp.priceTo = null;
                     tmp.verifiedOnly = false;
+                    tmp.rooms = null;
+                    tmp.furnished = tmp.pool = tmp.nearSea = tmp.pets = false;
                     from.clear();
                     to.clear();
                   }),
@@ -2496,6 +2521,11 @@ class _ListTabState extends State<ListTab> {
         filters.priceFrom = tmp.priceFrom;
         filters.priceTo = tmp.priceTo;
         filters.verifiedOnly = tmp.verifiedOnly;
+        filters.rooms = tmp.rooms;
+        filters.furnished = tmp.furnished;
+        filters.pool = tmp.pool;
+        filters.nearSea = tmp.nearSea;
+        filters.pets = tmp.pets;
       });
     }
   }
@@ -2628,7 +2658,15 @@ class _ListTabState extends State<ListTab> {
       title: title,
       subtitle: 'Свои в Египте',
       trailing: cityChip,
-      bottom: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [search, const SizedBox(height: 10), chips]),
+      bottom: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        search,
+        const SizedBox(height: 10),
+        chips,
+        if (widget.section == Section.realty) ...[
+          const SizedBox(height: 8),
+          RealtyQuickFilters(f: filters, onChanged: () => setState(() {})),
+        ],
+      ]),
     );
 
     final slivers = <Widget>[
@@ -2841,6 +2879,9 @@ class PostTile extends StatelessWidget {
         const SizedBox(height: 8),
         Text(priceOf(post),
             maxLines: 1, overflow: TextOverflow.ellipsis, style: heading(16, weight: FontWeight.w800, color: p.text)),
+        if (post.section == Section.realty && realtySummary(post).isNotEmpty)
+          Text(realtySummary(post),
+              maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: p.accent)),
         const SizedBox(height: 2),
         Text(post.title,
             maxLines: 2,
@@ -2884,6 +2925,9 @@ class PostCard extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(priceOf(post), style: heading(16, weight: FontWeight.w800, color: p.text)),
             if (rub.isNotEmpty) Text(rub, style: TextStyle(fontSize: 12, color: p.muted)),
+            if (post.section == Section.realty && realtySummary(post).isNotEmpty)
+              Text(realtySummary(post),
+                  maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: p.accent)),
             const SizedBox(height: 3),
             Text(post.title,
                 maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: p.text2, height: 1.3)),
@@ -3145,6 +3189,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   const SizedBox(height: 6),
                   Text(post.description.isEmpty ? 'Без описания' : post.description,
                       style: TextStyle(fontSize: 15.5, height: 1.6, color: p.body)),
+                  if (post.section == Section.realty && post.details.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    RealtySpecs(post: post),
+                  ],
                   const SizedBox(height: 18),
                   Box(
                     padding: const EdgeInsets.all(12),
@@ -3267,12 +3315,14 @@ const titleHints = {
   Section.ads: 'Например: Квартира 2 комнаты у моря',
   Section.services: 'Например: Ремонт кондиционеров с выездом',
   Section.jobs: 'Например: Нужен администратор в отель',
+  Section.realty: 'Например: Студия у моря в Мамше',
 };
 
 const descHints = {
   Section.ads: 'Состояние, размеры, что входит, где можно посмотреть',
   Section.services: 'Что делаете, опыт, районы выезда, сроки',
   Section.jobs: 'Обязанности, график, требования, оплата',
+  Section.realty: 'Состояние, что есть в квартире, условия, депозит, когда можно заехать',
 };
 
 class AddPostScreen extends StatefulWidget {
@@ -3288,6 +3338,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
   final formKey = GlobalKey<FormState>();
   late Section section = widget.edit?.section ?? widget.section;
   late String category = widget.edit?.category ?? categories[section]!.first;
+  late final Map<String, dynamic> details = {...?widget.edit?.details};
   late String city;
   late final title = TextEditingController(text: widget.edit?.title ?? '');
   late final desc = TextEditingController(text: widget.edit?.description ?? '');
@@ -3426,6 +3477,9 @@ class _AddPostScreenState extends State<AddPostScreen> {
         ].join(' · '),
         photos: photos,
         priceEgp: int.tryParse(price.text.replaceAll(RegExp(r'[^0-9]'), '')),
+        details: section == Section.realty
+            ? (realtyHasSpecs(category) ? {'type': 'Квартира', ...details} : <String, dynamic>{})
+            : null,
       );
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -3574,6 +3628,10 @@ class _AddPostScreenState extends State<AddPostScreen> {
                       value: category,
                       options: cats,
                       onChanged: (v) => setState(() => category = v)),
+                  if (section == Section.realty && realtyHasSpecs(category)) ...[
+                    gap,
+                    RealtyForm(details: details, category: category),
+                  ],
                   gap,
                   Field(
                     label: 'Заголовок',

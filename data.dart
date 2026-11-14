@@ -9,18 +9,20 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config.dart';
 import 'i18n.dart';
 
-enum Section { ads, services, jobs }
+enum Section { ads, services, jobs, realty }
 
 const sectionNames = {
   Section.ads: 'Объявления',
   Section.services: 'Услуги',
   Section.jobs: 'Работа',
+  Section.realty: 'Недвижимость',
 };
 
 const sectionSingle = {
   Section.ads: 'Объявление',
   Section.services: 'Услуга',
   Section.jobs: 'Работа',
+  Section.realty: 'Жильё',
 };
 
 const cities = [
@@ -51,9 +53,6 @@ const cities = [
 
 const categories = {
   Section.ads: [
-    'Аренда жилья',
-    'Аренда посуточно',
-    'Продажа жилья',
     'Телефоны',
     'Электроника',
     'Бытовая техника',
@@ -86,18 +85,21 @@ const categories = {
     'Другое',
   ],
   Section.jobs: ['Вакансии', 'Подработка', 'Резюме', 'Удалёнка', 'Туризм', 'Отели и рестораны', 'Другое'],
+  Section.realty: ['Аренда на месяц', 'Посуточно', 'Продажа', 'Ищу жильё', 'Риелторы и услуги'],
 };
 
 const searchHints = {
   Section.ads: 'Квартира, iPhone, диван…',
   Section.services: 'Сантехник, виза, репетитор…',
   Section.jobs: 'Гид, няня, подработка…',
+  Section.realty: 'Студия у моря, компаунд, вилла…',
 };
 
 const priceLabels = {
   Section.ads: 'Цена, EGP',
   Section.services: 'Стоимость, EGP',
   Section.jobs: 'Зарплата в месяц, EGP',
+  Section.realty: 'Цена, EGP',
 };
 
 /// Курс: подгружается с сервера при запуске (функция rates), здесь — запасные значения.
@@ -129,6 +131,10 @@ String priceOf(Post p) {
   if (p.section == Section.jobs) {
     if (p.priceEgp == null || p.priceEgp == 0) return tr('Зарплата договорная');
     return tr('{n} EGP/мес', {'n': fmt(p.priceEgp!)});
+  }
+  if (p.section == Section.realty && p.priceEgp != null && p.priceEgp! > 0) {
+    if (p.category == 'Аренда на месяц') return tr('{n} EGP/мес', {'n': fmt(p.priceEgp!)});
+    if (p.category == 'Посуточно') return tr('{n} EGP/сутки', {'n': fmt(p.priceEgp!)});
   }
   return priceMain(p.priceEgp);
 }
@@ -302,6 +308,7 @@ class Post {
     this.authorLastSeen,
     this.vipUntil,
     this.highlightUntil,
+    this.details = const {},
     DateTime? bumpedAt,
     DateTime? date,
   })  : date = date ?? DateTime.now(),
@@ -338,6 +345,7 @@ class Post {
       highlightUntil: DateTime.tryParse((m['highlight_until'] ?? '') as String),
       bumpedAt: DateTime.tryParse((m['bumped_at'] ?? '') as String),
       date: DateTime.tryParse((m['created_at'] ?? '') as String),
+      details: m['details'] is Map ? Map<String, dynamic>.from(m['details'] as Map) : const {},
     );
   }
 
@@ -364,6 +372,9 @@ class Post {
   final DateTime? vipUntil;
   final DateTime? highlightUntil;
   final DateTime bumpedAt;
+
+  /// Параметры жилья (раздел «Недвижимость»): type, rooms, area, floor, sea, furnished, pool, ac, wifi, pets, place.
+  final Map<String, dynamic> details;
   final DateTime date;
 
   bool get isVip => vipUntil != null && vipUntil!.isAfter(DateTime.now());
@@ -527,7 +538,11 @@ class Filters {
   int? priceFrom;
   int? priceTo;
   bool verifiedOnly = false;
-  bool get active =>
+  // недвижимость
+  String? rooms;
+  bool furnished = false, pool = false, nearSea = false, pets = false;
+  bool get realtyActive => rooms != null || furnished || pool || nearSea || pets;
+  bool get active => realtyActive ||
       sort != SortMode.fresh || priceFrom != null || priceTo != null || verifiedOnly;
 }
 
@@ -866,6 +881,7 @@ class AppState extends ChangeNotifier {
     required String contact,
     required List<String> photos,
     int? priceEgp,
+    Map<String, dynamic>? details,
   }) async {
     final u = user;
     if (u == null) throw Exception('Войдите, чтобы разместить объявление');
@@ -878,6 +894,7 @@ class AppState extends ChangeNotifier {
       'contact': contact,
       'price_egp': priceEgp,
       'photos': photos,
+      if (details != null) 'details': details,
     };
     if (id == null) {
       await sb.from('posts').insert({...data, 'user_id': u.id});
@@ -1174,6 +1191,14 @@ class AppState extends ChangeNotifier {
       if (city != cities.first && p.city != city) return false;
       if (category != null && p.category != category) return false;
       if (f.verifiedOnly && !p.verified) return false;
+      if (s == Section.realty && f.realtyActive) {
+        final d = p.details;
+        if (f.rooms != null && d['rooms'] != f.rooms) return false;
+        if (f.furnished && d['furnished'] != true) return false;
+        if (f.pool && d['pool'] != true) return false;
+        if (f.pets && d['pets'] != true) return false;
+        if (f.nearSea && !(d['sea'] == 'Первая линия' || d['sea'] == 'До 500 м')) return false;
+      }
       final price = p.priceEgp;
       if (f.priceFrom != null && (price == null || price < f.priceFrom!)) return false;
       if (f.priceTo != null && (price == null || price > f.priceTo!)) return false;

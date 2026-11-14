@@ -47,6 +47,7 @@ class HomeTab extends StatelessWidget {
     // [иконка, название, цвета градиента, действие]
     final actions = <(String, String, List<int>, VoidCallback)>[
       ('tag', 'Объявления', [0xFF34D399, 0xFF0D9488], () => openTab(0)),
+      ('home', 'Жильё', [0xFFC4B5FD, 0xFF8B5CF6], () => openTab(6)),
       ('tool', 'Услуги', [0xFF60A5FA, 0xFF2563EB], () => openTab(1)),
       ('bag', 'Работа', [0xFFFCD34D, 0xFFF59E0B], () => openTab(2)),
       ('news', 'Новости', [0xFFA78BFA, 0xFF7C3AED], () => openTab(3)),
@@ -56,7 +57,6 @@ class HomeTab extends StatelessWidget {
       ('gift', 'Скидки', [0xFFF9A8D4, 0xFFDB2777], () => push(context, const PromosScreen())),
       ('shield', 'Проверенные', [0xFF67E8F9, 0xFF0891B2], () => push(context, const TrustedScreen())),
       ('pin', 'Рядом', [0xFF7DD3FC, 0xFF0284C7], () => push(context, const NearbyScreen())),
-      ('chat', 'Разговорник', [0xFFC4B5FD, 0xFF8B5CF6], () => push(context, const PhrasebookScreen())),
       ('grid', 'Полезное', [0xFFCBD5E1, 0xFF64748B], () => openTab(4)),
     ];
 
