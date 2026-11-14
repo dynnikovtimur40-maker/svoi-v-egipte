@@ -15,6 +15,7 @@ import 'data.dart';
 import 'guide.dart';
 import 'i18n.dart';
 import 'main.dart';
+import 'start.dart';
 import 'tourist.dart';
 
 // =====================================================================
@@ -946,6 +947,8 @@ class TouristTiles extends StatelessWidget {
       ['gift', 'Скидки', 'От партнёров', const PromosScreen()],
       if (withGuide) ['pyramid', 'Путеводитель', 'Города и места', const GuideScreen()],
       ['help', 'Советы туристу', 'Виза, деньги, такси', const GuideBasicsScreen()],
+      ['car', 'Покажи таксисту', 'Фразы крупно на арабском', const ShowDriverScreen()],
+      ['calendar', 'Первые 30 дней', 'Шаги для новичка и виза', const First30Screen()],
       ['chat', 'Разговорник', 'Арабский для туриста', const PhrasebookScreen()],
       ['sun', 'Погода по месяцам', 'Когда ехать', const SeasonsScreen()],
       ['check', 'Что взять с собой', 'Чек-лист', const ChecklistScreen()],

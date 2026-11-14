@@ -17,6 +17,7 @@ import 'features.dart';
 import 'home.dart';
 import 'i18n.dart';
 import 'realty.dart';
+import 'start.dart';
 import 'tourist.dart';
 
 Future<void> main() async {
@@ -1472,6 +1473,7 @@ class _AuthGateState extends State<AuthGate> {
   @override
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
+    if (app.settingsLoaded && !app.welcomed) return const WelcomeScreen();
     if (app.user != null || app.guest) return const HomeShell();
     return const AuthScreen();
   }
@@ -3790,7 +3792,7 @@ class MoreTab extends StatelessWidget {
                 ),
             ]),
             const SizedBox(height: 20),
-            Center(child: Text('Свои в Египте · версия 0.6', style: TextStyle(fontSize: 12.5, color: p.muted))),
+            Center(child: Text('Свои в Египте · версия 0.7', style: TextStyle(fontSize: 12.5, color: p.muted))),
           ]),
         ),
       ],

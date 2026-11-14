@@ -7,6 +7,7 @@ import 'features.dart';
 import 'guide.dart';
 import 'i18n.dart';
 import 'main.dart';
+import 'start.dart';
 import 'tourist.dart';
 
 /// Город путеводителя для погоды: ближайший к выбранному городу.
@@ -45,20 +46,24 @@ class HomeTab extends StatelessWidget {
     final fresh = app.posts.where((x) => app.city == cities.first || x.city == app.city).take(4).toList();
 
     // [иконка, название, цвета градиента, действие]
-    final actions = <(String, String, List<int>, VoidCallback)>[
+    final life = <(String, String, List<int>, VoidCallback)>[
       ('tag', 'Объявления', [0xFF34D399, 0xFF0D9488], () => openTab(0)),
       ('home', 'Жильё', [0xFFC4B5FD, 0xFF8B5CF6], () => openTab(6)),
       ('tool', 'Услуги', [0xFF60A5FA, 0xFF2563EB], () => openTab(1)),
       ('bag', 'Работа', [0xFFFCD34D, 0xFFF59E0B], () => openTab(2)),
       ('news', 'Новости', [0xFFA78BFA, 0xFF7C3AED], () => openTab(3)),
+      ('grid', 'Полезное', [0xFFCBD5E1, 0xFF64748B], () => openTab(4)),
+    ];
+    final trip = <(String, String, List<int>, VoidCallback)>[
       ('alert', 'SOS', [0xFFFB7185, 0xFFE11D48], () => push(context, const SosScreen())),
       ('coin', 'Цены', [0xFF86EFAC, 0xFF16A34A], () => push(context, const FairPricesScreen())),
       ('pyramid', 'Путеводитель', [0xFFFDBA74, 0xFFEA580C], () => push(context, const GuideScreen())),
-      ('gift', 'Скидки', [0xFFF9A8D4, 0xFFDB2777], () => push(context, const PromosScreen())),
-      ('shield', 'Проверенные', [0xFF67E8F9, 0xFF0891B2], () => push(context, const TrustedScreen())),
       ('pin', 'Рядом', [0xFF7DD3FC, 0xFF0284C7], () => push(context, const NearbyScreen())),
-      ('grid', 'Полезное', [0xFFCBD5E1, 0xFF64748B], () => openTab(4)),
+      ('shield', 'Проверенные', [0xFF67E8F9, 0xFF0891B2], () => push(context, const TrustedScreen())),
+      ('gift', 'Скидки', [0xFFF9A8D4, 0xFFDB2777], () => push(context, const PromosScreen())),
     ];
+    // Туристу сначала показываем «туристическое», жителю — объявления, жильё и работу.
+    final actions = app.isTourist ? [...trip, ...life] : [...life, ...trip];
 
     return UnderBar(
       bar: const GlassBar(title: 'Свои в Египте', subtitle: 'Главная', clear: true),
@@ -69,7 +74,11 @@ class HomeTab extends StatelessWidget {
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
           sliver: SliverList.list(children: [
-            GreetingCard(city: city, weatherCity: wc, onRates: () => openTab(4)),
+            Appear(child: GreetingCard(city: city, weatherCity: wc, onRates: () => openTab(4))),
+            const SizedBox(height: 10),
+            const Appear(delay: 70, child: ModeSwitch()),
+            const SizedBox(height: 10),
+            const Appear(delay: 140, child: HomeHero()),
             const SizedBox(height: 14),
             // Быстрый доступ — стеклянные иконки с цветной полоской
             GridView.count(
@@ -80,7 +89,10 @@ class HomeTab extends StatelessWidget {
               mainAxisSpacing: 6,
               crossAxisSpacing: 2,
               childAspectRatio: .78,
-              children: [for (final a in actions) QuickIcon(icon: a.$1, label: a.$2, colors: a.$3, onTap: a.$4)],
+              children: [
+                for (final a in actions)
+                  QuickIcon(key: ValueKey(a.$2), icon: a.$1, label: a.$2, colors: a.$3, onTap: a.$4)
+              ],
             ),
             // Новости
             SectionTitle('Новости', action: 'Все', onAction: () => openTab(3)),

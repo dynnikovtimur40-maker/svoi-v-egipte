@@ -560,6 +560,76 @@ class AppState extends ChangeNotifier {
   bool loading = false;
   String? error;
   bool guest = false;
+
+  // ---------- Турист / житель, первые шаги, виза ----------
+  /// 'tourist' или 'resident'.
+  String mode = 'tourist';
+  bool settingsLoaded = false;
+  /// Показано ли приветствие при первом запуске.
+  bool welcomed = false;
+  Set<String> stepsDone = {};
+  DateTime? visaFrom;
+  int visaDays = 30;
+  String myAddress = '';
+
+  bool get isTourist => mode == 'tourist';
+
+  /// Сколько дней осталось по визе (null — дата въезда не указана).
+  int? get visaLeft {
+    final f = visaFrom;
+    if (f == null) return null;
+    final end = DateTime(f.year, f.month, f.day).add(Duration(days: visaDays));
+    final now = DateTime.now();
+    return end.difference(DateTime(now.year, now.month, now.day)).inDays;
+  }
+
+  DateTime? get visaUntil {
+    final f = visaFrom;
+    return f == null ? null : DateTime(f.year, f.month, f.day).add(Duration(days: visaDays));
+  }
+
+  void _save(void Function(SharedPreferences p) f) {
+    SharedPreferences.getInstance().then(f).catchError((_) {});
+  }
+
+  void setMode(String m) {
+    mode = m;
+    notifyListeners();
+    _save((p) => p.setString('mode', m));
+  }
+
+  void finishWelcome(String m) {
+    mode = m;
+    welcomed = true;
+    notifyListeners();
+    _save((p) {
+      p.setString('mode', m);
+      p.setBool('welcomed', true);
+    });
+  }
+
+  void toggleStep(String id) {
+    stepsDone.contains(id) ? stepsDone.remove(id) : stepsDone.add(id);
+    notifyListeners();
+    _save((p) => p.setStringList('steps30', stepsDone.toList()));
+  }
+
+  void setVisa(DateTime? from, int days) {
+    visaFrom = from;
+    visaDays = days;
+    notifyListeners();
+    _save((p) {
+      from == null ? p.remove('visa_from') : p.setString('visa_from', from.toIso8601String());
+      p.setInt('visa_days', days);
+    });
+  }
+
+  void setMyAddress(String a) {
+    myAddress = a;
+    notifyListeners();
+    _save((p) => p.setString('my_address', a));
+  }
+
   ThemeMode themeMode = ThemeMode.dark;
   int accent = 0;
   String lang = appLang;
@@ -614,8 +684,16 @@ class AppState extends ChangeNotifier {
       final c = p.getString('city');
       if (c != null && cities.contains(c)) city = c;
       if (p.getBool('guest') == true) guest = true;
-      notifyListeners();
+      final m = p.getString('mode');
+      if (m == 'tourist' || m == 'resident') mode = m!;
+      welcomed = p.getBool('welcomed') == true;
+      stepsDone = (p.getStringList('steps30') ?? const []).toSet();
+      visaFrom = DateTime.tryParse(p.getString('visa_from') ?? '');
+      visaDays = p.getInt('visa_days') ?? 30;
+      myAddress = p.getString('my_address') ?? '';
     } catch (_) {}
+    settingsLoaded = true;
+    notifyListeners();
   }
 
   Future<void> setTheme(ThemeMode m) async {

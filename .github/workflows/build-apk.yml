@@ -32,6 +32,7 @@ jobs:
           rm -rf test
           M=android/app/src/main/AndroidManifest.xml
           sed -i 's/android:label="[^"]*"/android:label="Свои в Египте"/' $M
+          grep -q 'TTS_SERVICE' $M || sed -i 's#<queries>#<queries>\n        <intent><action android:name="android.intent.action.TTS_SERVICE"/></intent>#' $M
           grep -q 'android.permission.INTERNET' $M || sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' $M
 
       - name: Disable release lint
