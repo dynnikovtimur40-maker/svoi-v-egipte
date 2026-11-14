@@ -265,8 +265,8 @@ class GreetingCard extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               w.Text(date, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: sub)),
               const SizedBox(height: 4),
-              w.Text(logged ? '${tr(hello)}, $name $glyph' : tr('Добро пожаловать!'),
-                  maxLines: 2, style: heading(23, weight: FontWeight.w700, color: fg, height: 1.2)),
+              w.Text(logged ? '${tr(hello)}, $name\u00A0$glyph' : tr('Добро пожаловать!'),
+                  maxLines: 2, style: heading(21, weight: FontWeight.w700, color: fg, height: 1.2)),
             ]),
           ),
           const SizedBox(width: 10),
