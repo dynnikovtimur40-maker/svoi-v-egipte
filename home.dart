@@ -169,9 +169,9 @@ class _QuickIconState extends State<QuickIcon> {
 
 /// Тёмное стекло с цветной полоской снизу (иконки и плашки на главной).
 class GlassTile extends StatelessWidget {
-  const GlassTile({super.key, required this.child, required this.accent, this.radius = 16, this.onTap});
+  const GlassTile({super.key, required this.child, this.accent, this.radius = 16, this.onTap});
   final Widget child;
-  final Color accent;
+  final Color? accent;
   final double radius;
   final VoidCallback? onTap;
 
@@ -192,7 +192,7 @@ class GlassTile extends StatelessWidget {
             onTap: onTap,
             child: Stack(children: [
               child,
-              Positioned(left: 0, right: 0, bottom: 0, child: Container(height: 3, color: accent)),
+              if (accent != null) Positioned(left: 0, right: 0, bottom: 0, child: Container(height: 3, color: accent)),
             ]),
           ),
         ),
@@ -272,7 +272,6 @@ class GreetingCard extends StatelessWidget {
         Row(children: [
           Expanded(
             child: GlassTile(
-              accent: const Color(0xFF2DD4BF),
               onTap: () => push(context, GuideCityScreen(city: weatherCity)),
               child: Padding(
                 padding: pad,
@@ -294,8 +293,7 @@ class GreetingCard extends StatelessWidget {
               final d = snap.data;
               if (d == null || d[0] == null) return const SizedBox.shrink();
               return GlassTile(
-                accent: const Color(0xFFFBBF24),
-                onTap: () => push(context, GuideCityScreen(city: weatherCity)),
+                  onTap: () => push(context, GuideCityScreen(city: weatherCity)),
                 child: Padding(
                   padding: pad,
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -312,7 +310,6 @@ class GreetingCard extends StatelessWidget {
         ]),
         const SizedBox(height: 8),
         GlassTile(
-          accent: const Color(0xFFA78BFA),
           onTap: onRates,
           child: Padding(
             padding: pad,
