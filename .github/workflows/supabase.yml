@@ -54,7 +54,7 @@ jobs:
           for k in TELEGRAM_BOT_TOKEN TELEGRAM_ADMIN_CHAT_ID PAYMOB_SECRET_KEY PAYMOB_PUBLIC_KEY PAYMOB_INTEGRATION_IDS PAYMOB_HMAC RESEND_API_KEY MAIL_FROM; do
             v="${!k}"
             if [ -n "$v" ]; then
-              if out=$(supabase secrets set --project-ref "$PROJECT" "$k=$v" 2>&1); then echo "set $k"
+              if out=$(supabase secrets set --yes --project-ref "$PROJECT" "$k=$v" 2>&1); then echo "set $k"
               else echo "::error title=secrets $k::$(echo "$out" | tail -5 | tr '\n' ' ')"; exit 1; fi
             fi
           done
@@ -63,7 +63,7 @@ jobs:
         if: steps.chk.outputs.ok == '1'
         run: |
           for f in tg-bot payments notify; do
-            if out=$(supabase functions deploy "$f" --project-ref "$PROJECT" --no-verify-jwt --use-api 2>&1); then
+            if out=$(supabase functions deploy "$f" --project-ref "$PROJECT" --no-verify-jwt --use-api --yes 2>&1); then
               echo "::notice title=deploy $f::ok"
             else
               echo "::error title=deploy $f::$(echo "$out" | tail -8 | tr '\n' ' ')"; exit 1
