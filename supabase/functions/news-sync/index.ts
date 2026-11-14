@@ -1,15 +1,15 @@
 // Автоматические новости: каждые 3 часа забирает свежие новости про Египет (для туристов и экспатов)
-// из Google Новостей. Хранит только заголовок, источник и ссылку — читать полностью на сайте источника.
+// из Bing Новостей (Google не отвечает серверам Supabase). Хранит только заголовок, источник и ссылку — читать полностью на сайте источника.
 import { cors, db, json } from "../_shared/util.ts";
 
 const FEEDS: { lang: string; q: string }[] = [
-  { lang: "ru", q: "Египет туристы when:3d" },
-  { lang: "ru", q: "Хургада OR Шарм-эль-Шейх when:3d" },
-  { lang: "ru", q: "Египет виза OR въезд when:7d" },
-  { lang: "ru", q: "Египет курс фунта when:7d" },
-  { lang: "en", q: "Egypt tourists when:3d" },
-  { lang: "en", q: "Hurghada OR \"Sharm El Sheikh\" when:3d" },
-  { lang: "en", q: "Egypt visa OR \"e-visa\" when:7d" },
+  { lang: "ru", q: "Египет туристы" },
+  { lang: "ru", q: "Хургада" },
+  { lang: "ru", q: "Шарм-эль-Шейх" },
+  { lang: "ru", q: "Египет виза" },
+  { lang: "en", q: "Egypt tourists" },
+  { lang: "en", q: "Hurghada" },
+  { lang: "en", q: "Egypt visa travel" },
 ];
 
 // Не туда: спорт, криминальная хроника без пользы и т.п.
@@ -41,23 +41,6 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const base = db();
   const force = new URL(req.url).searchParams.get("force") === "1";
-  if (new URL(req.url).searchParams.get("debug") === "1") {
-    const out: string[] = [];
-    for (const u of [
-      "https://www.bing.com/news/search?q=" + encodeURIComponent("Египет туристы") + "&format=rss&setmkt=ru-RU&setlang=ru",
-      "https://www.bing.com/news/search?q=" + encodeURIComponent("Egypt tourists") + "&format=rss&setmkt=en-US",
-      "https://www.egyptindependent.com/feed/",
-    ]) {
-      try {
-        const r = await fetch(u, { headers: { "User-Agent": "Mozilla/5.0 (compatible; SvoiVEgipteBot/1.0)" } });
-        const t = await r.text();
-        out.push(`${r.status} len=${t.length} items=${t.split("<item>").length - 1} head=${t.slice(0, 160)} item=${(t.split("<item>")[1] ?? "").slice(0, 500)}`);
-      } catch (e) {
-        out.push(String(e));
-      }
-    }
-    return json({ debug: out });
-  }
 
   // не чаще раза в 20 минут
   const { data: last } = await base.from("bot_log").select("created_at").eq("kind", "news-sync")
@@ -73,16 +56,28 @@ Deno.serve(async (req) => {
   const fresh: Record<string, unknown>[] = [];
   const errors: string[] = [];
   for (const f of FEEDS) {
-    const hl = f.lang === "ru" ? "hl=ru&gl=RU&ceid=RU:ru" : "hl=en-US&gl=US&ceid=US:en";
+    const mkt = f.lang === "ru" ? "setmkt=ru-RU&setlang=ru" : "setmkt=en-US";
     try {
-      const r = await fetch(`https://news.google.com/rss/search?q=${encodeURIComponent(f.q)}&${hl}`, {
+      const r = await fetch(`https://www.bing.com/news/search?q=${encodeURIComponent(f.q)}&format=rss&${mkt}`, {
         headers: { "User-Agent": "Mozilla/5.0 (compatible; SvoiVEgipteBot/1.0)" },
       });
       const xml = await r.text();
       for (const it of xml.split("<item>").slice(1, 15)) {
         let title = tag(it, "title");
-        const link = tag(it, "link");
-        const source = tag(it, "source");
+        const raw = tag(it, "link");
+        // у Bing ссылка-переходник: настоящий адрес в параметре url
+        let link = raw;
+        try {
+          const real = new URL(raw).searchParams.get("url");
+          if (real) link = real;
+        } catch (_) { /* оставить как есть */ }
+        const source = tag(it, "News:Source") || (() => {
+          try {
+            return new URL(link).hostname.replace(/^www\./, "");
+          } catch (_) {
+            return "";
+          }
+        })();
         const pub = new Date(tag(it, "pubDate"));
         if (!title || !link) continue;
         if (source && title.endsWith(" - " + source)) title = title.slice(0, -(source.length + 3));
