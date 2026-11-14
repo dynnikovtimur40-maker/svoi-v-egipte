@@ -1770,6 +1770,20 @@ class _AuthScreenState extends State<AuthScreen> {
                           onSubmitted: (_) => verifyCode(),
                         ),
                         const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(color: p.warnbg, borderRadius: BorderRadius.circular(12)),
+                          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Ico('mail', size: 18, color: p.warn),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                  'Письмо часто попадает в «Спам» или «Промоакции». Найдите письмо от «Свои в Египте» (noreply@svoi-egypt.com) и нажмите «Не спам» — следующие будут приходить во «Входящие».',
+                                  style: TextStyle(fontSize: 13, height: 1.4, color: p.warn)),
+                            ),
+                          ]),
+                        ),
+                        const SizedBox(height: 10),
                         PrimaryButton('Подтвердить почту', busy: busy, onPressed: verifyCode),
                         Align(
                           alignment: Alignment.centerLeft,
@@ -2260,8 +2274,10 @@ class AppDrawer extends StatelessWidget {
 
 /// Прозрачная (стеклянная) шапка разделов.
 class GlassBar extends StatelessWidget {
-  const GlassBar({super.key, required this.title, this.subtitle, this.trailing, this.bottom});
+  const GlassBar({super.key, required this.title, this.subtitle, this.trailing, this.bottom, this.clear = false});
   final String title;
+  /// Прозрачная шапка без полосы (главная) — сливается с фоном страницы.
+  final bool clear;
   final String? subtitle;
   final Widget? trailing;
   final Widget? bottom;
@@ -2271,12 +2287,12 @@ class GlassBar extends StatelessWidget {
     final p = Pal.of(context);
     final top = MediaQuery.of(context).padding.top;
     return Glass(
-      opacity: p.dark ? .4 : .55,
+      opacity: clear ? (p.dark ? .14 : .22) : (p.dark ? .4 : .55),
       blur: 14,
       border: false,
       child: Container(
-        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.glassLine))),
-        padding: EdgeInsets.fromLTRB(16, top + 10, 16, bottom == null ? 12 : 10),
+        decoration: clear ? null : BoxDecoration(border: Border(bottom: BorderSide(color: p.glassLine))),
+        padding: EdgeInsets.fromLTRB(16, top + (clear ? 4 : 10), 16, bottom == null ? (clear ? 8 : 12) : 10),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
             const MenuButton(),

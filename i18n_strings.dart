@@ -834,4 +834,5 @@ const Map<String, List<String>> kTr = {
   'Цена в месяц, EGP': ['Price per month, EGP', 'Ціна на місяць, EGP', 'السعر شهريًا، جنيه', 'Preis pro Monat, EGP'],
   'Цена за сутки, EGP': ['Price per day, EGP', 'Ціна за добу, EGP', 'السعر لليوم، جنيه', 'Preis pro Tag, EGP'],
   'Бюджет, EGP': ['Budget, EGP', 'Бюджет, EGP', 'الميزانية، جنيه', 'Budget, EGP'],
+  'Письмо часто попадает в «Спам» или «Промоакции». Найдите письмо от «Свои в Египте» (noreply@svoi-egypt.com) и нажмите «Не спам» — следующие будут приходить во «Входящие».': ['The email often lands in Spam or Promotions. Find the email from “Svoi in Egypt” (noreply@svoi-egypt.com) and mark it “Not spam” — next ones will arrive in your Inbox.', 'Лист часто потрапляє в «Спам» або «Промоакції». Знайдіть лист від «Свої в Єгипті» (noreply@svoi-egypt.com) і натисніть «Не спам».', 'غالبًا ما تصل الرسالة إلى البريد العشوائي أو العروض. ابحث عن رسالة noreply@svoi-egypt.com واضغط «ليست رسالة غير مرغوب فيها».', 'Die E-Mail landet oft im Spam oder unter Werbung. Suchen Sie die E-Mail von noreply@svoi-egypt.com und markieren Sie „Kein Spam“.'],
 };

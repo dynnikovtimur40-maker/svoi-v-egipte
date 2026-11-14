@@ -61,7 +61,7 @@ class HomeTab extends StatelessWidget {
     ];
 
     return UnderBar(
-      bar: const GlassBar(title: 'Свои в Египте', subtitle: 'Главная'),
+      bar: const GlassBar(title: 'Свои в Египте', subtitle: 'Главная', clear: true),
       onRefresh: () async {
         await Future.wait([app.load(), app.loadNews(), app.loadRates()]);
       },
