@@ -830,18 +830,17 @@ Future<String?> wikiImage(String title, {bool big = false}) {
   final key = '$title|$big';
   return _wikiCache[key] ??= () async {
     try {
-      final r = await http.get(Uri.parse('https://en.wikipedia.org/api/rest_v1/page/summary/${Uri.encodeComponent(title)}'));
+      // pageimages сам отдаёт уменьшенную копию нужной ширины (не больше оригинала)
+      final r = await http.get(Uri.parse('https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*'
+          '&prop=pageimages&piprop=thumbnail&redirects=1&pithumbsize=${big ? 1000 : 420}&titles=${Uri.encodeComponent(title)}'));
       if (r.statusCode != 200) return null;
-      final j = jsonDecode(r.body) as Map;
-      final img = (big ? (j['originalimage'] ?? j['thumbnail']) : (j['thumbnail'] ?? j['originalimage'])) as Map?;
-      var url = img?['source'] as String?;
-      // уменьшаем большие оригиналы до разумной ширины
-      if (url != null && big && url.contains('/commons/') && !url.contains('/thumb/')) {
-        final file = url.split('/').last;
-        final path = url.substring(url.indexOf('/commons/') + 9);
-        url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/$path/1200px-$file';
+      final pages = ((jsonDecode(r.body) as Map)['query'] as Map?)?['pages'] as Map?;
+      if (pages == null) return null;
+      for (final p in pages.values) {
+        final url = ((p as Map)['thumbnail'] as Map?)?['source'] as String?;
+        if (url != null) return url;
       }
-      return url;
+      return null;
     } catch (_) {
       return null;
     }
