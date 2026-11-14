@@ -14,8 +14,7 @@ jobs:
           TG: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           SB: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          convert assets/logo.png -resize 640x640 -background white -flatten -quality 92 /tmp/logo.jpg && ls -la /tmp/logo.jpg
-          r=$(curl -s -F chat_id=@svoi_egypt -F photo=@/tmp/logo.jpg "https://api.telegram.org/bot$TG/setChatPhoto")
+          r=$(curl -s -F chat_id=@svoi_egypt -F photo=@assets/channel.jpg "https://api.telegram.org/bot$TG/setChatPhoto")
           echo "::notice title=photo::${r:0:200} "
           exit 0
           sleep 60
