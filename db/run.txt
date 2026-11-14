@@ -1,1 +1,1 @@
-db/news_check.sql
+db/news_now.sql
