@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart' hide Text;
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
+import 'package:url_launcher/url_launcher.dart';
 
 import 'config.dart';
 import 'data.dart';
@@ -229,21 +230,42 @@ class _VerifyScreenState extends State<VerifyScreen> {
   Future<void> refresh() async {
     final app = AppScope.of(context);
     await Future.wait([app.loadProfile(), app.loadMyVerification()]);
+    await prepare();
   }
 
-  Future<void> openBot() async {
+  /// Готовим код-ссылку заранее: на iPhone Telegram открывается только сразу после нажатия,
+  /// без ожидания ответа сервера.
+  Future<void> prepare() async {
     final app = AppScope.of(context);
-    setState(() => busy = true);
+    if (app.user == null || app.profile?.verified == true) return;
     try {
-      final url = await app.verificationLink();
-      if (!mounted) return;
-      setState(() => linkCode = Uri.tryParse(url)?.queryParameters['start']);
-      await openUrl(context, url, url);
-      if (mounted) setState(() => opened = true);
-    } catch (e) {
-      if (mounted) toast(context, AppState.serverMessage(e, 'Бот проверки ещё не подключён. Попробуйте позже.'));
+      final c = await app.prepareVerificationCode();
+      if (mounted) setState(() => linkCode = c);
+    } catch (_) {}
+  }
+
+  String get botUrl => 'https://t.me/$telegramBot?start=${linkCode ?? ''}';
+
+  void openBot() {
+    if (linkCode == null) {
+      setState(() => busy = true);
+      prepare().whenComplete(() {
+        if (mounted) setState(() => busy = false);
+        if (mounted && linkCode != null) toast(context, 'Готово — нажмите кнопку ещё раз');
+      });
+      return;
     }
-    if (mounted) setState(() => busy = false);
+    // без await до открытия — иначе Safari заблокирует переход
+    launchUrl(Uri.parse(botUrl), mode: LaunchMode.externalApplication).then((ok) {
+      if (!ok && mounted) {
+        Clipboard.setData(ClipboardData(text: linkCode!));
+        toast(context, tr('Откройте @{b} в Telegram и отправьте код {c} (скопирован)', {'b': telegramBot, 'c': linkCode}));
+      }
+    });
+    setState(() => opened = true);
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) AppScope.of(context).loadMyVerification();
+    });
   }
 
   Future<void> confirm() async {
@@ -355,7 +377,8 @@ class _VerifyScreenState extends State<VerifyScreen> {
             child: Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Бот не ответил кодом? Отправьте ему сообщением:', style: TextStyle(fontSize: 12.5, color: p.muted, height: 1.35)),
+                  Text(tr('Не открылось или бот молчит? Найдите в Telegram @{b} и отправьте ему:', {'b': telegramBot}),
+                      style: TextStyle(fontSize: 12.5, color: p.muted, height: 1.35)),
                   const SizedBox(height: 4),
                   SelectableText(linkCode!, style: heading(20, weight: FontWeight.w800, color: p.text)),
                 ]),

@@ -14,3 +14,6 @@ const appLanguages = <List<String>>[
   ['ar', 'العربية'],
   ['de', 'Deutsch'],
 ];
+
+// Telegram-бот проверки профиля и уведомлений.
+const telegramBot = 'svoi_egypt_bot';

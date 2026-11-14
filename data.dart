@@ -1331,6 +1331,12 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Код-ссылка для бота (готовится заранее, чтобы кнопка открывала Telegram без задержки).
+  Future<String> prepareVerificationCode() async {
+    final code = await sb.rpc('start_verification') as String;
+    return code;
+  }
+
   /// Код для бота и ссылка t.me на него.
   Future<String> verificationLink() async {
     final code = await sb.rpc('start_verification') as String;
