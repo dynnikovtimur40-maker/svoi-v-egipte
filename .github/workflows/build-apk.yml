@@ -49,6 +49,10 @@ jobs:
           flutter analyze --no-fatal-infos --no-fatal-warnings lib > analyze.txt 2>&1 || true
           cat analyze.txt
           grep -E '^ *error' analyze.txt | head -45 | while IFS= read -r l; do echo "::error::$l"; done
+          W=$(grep -cE '^ *warning' analyze.txt || true); I=$(grep -cE '^ *info' analyze.txt || true)
+          echo "::notice title=analyze::warnings=$W infos=$I"
+          echo "::notice title=warnings::$(grep -E '^ *warning' analyze.txt | head -40 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          echo "::notice title=infos::$(grep -E '^ *info' analyze.txt | grep -vE 'deprecated_member_use|use_build_context_synchronously|prefer_const|unnecessary_underscores|sort_child' | head -40 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
           ! grep -qE '^ *error' analyze.txt
 
       - run: flutter build apk --release
