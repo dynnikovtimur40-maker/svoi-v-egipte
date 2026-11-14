@@ -1,2 +1,1 @@
-db/schema_v5.sql
-db/test_profanity.sql
+db/diag.sql

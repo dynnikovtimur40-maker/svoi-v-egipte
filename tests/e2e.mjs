@@ -57,7 +57,7 @@ try {
   const pm2 = await newPost(A, { description: 'xyй знает что' });
   check('мат латиницей блокируется', !!pm2.error, errText(pm2.error));
   const pf = await newPost(A, { description: 'Нужна предоплата 50% на карту' });
-  check('подозрительное (предоплата) уходит модератору', pf.data?.status === 'pending' && /предоплата/.test(pf.data?.auto_flags ?? ''), `${pf.data?.status} / ${pf.data?.auto_flags}`);
+  check('подозрительное (предоплата) уходит модератору', pf.data?.status === 'pending' && /предоплата/.test(pf.data?.auto_flags ?? ''), `${pf.data?.status} / ${pf.data?.auto_flags} ${errText(pf.error)}`);
   const pd = await newPost(A, { title: p1.data.title });
   check('дубликат запрещён', !!pd.error && /уже есть/.test(pd.error.message), errText(pd.error));
   const pl = await newPost(A, { description: 'смотри сайт www.example.com' });
