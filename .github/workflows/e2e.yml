@@ -27,7 +27,17 @@ jobs:
           rm keys.json
           echo "::add-mask::$ANON"; echo "::add-mask::$SERVICE"
           echo "ANON=$ANON" >> "$GITHUB_ENV"; echo "SERVICE=$SERVICE" >> "$GITHUB_ENV"
-      - run: cd tests && npm init -y >/dev/null && npm i @supabase/supabase-js@2 >/dev/null
+      - name: Install
+        run: |
+          cd tests && npm init -y >/dev/null
+          npm i @supabase/supabase-js@2 > npm.txt 2>&1 || { echo "::error title=npm::$(tail -15 npm.txt | tr '\n' ' ')"; exit 1; }
       - name: Run
-        run: node tests/e2e.mjs
+        shell: bash
+        run: |
+          set +e
+          node tests/e2e.mjs > out.txt 2>&1
+          code=$?
+          cat out.txt
+          grep -q '^::' out.txt || echo "::error title=crash::$(tail -25 out.txt | tr '\n' ' ' | head -c 3000)"
+          exit $code
 # 1794617034
