@@ -14,8 +14,10 @@ jobs:
           TG: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           SB: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          r=$(curl -s -F chat_id=@svoi_egypt -F photo=@assets/logo.png "https://api.telegram.org/bot$TG/setChatPhoto" | jq -c '{ok,description}')
-          echo "::notice title=photo::$r"
+          python3 -c "from PIL import Image; Image.open('assets/logo.png').convert('RGB').resize((640,640)).save('/tmp/logo.jpg', quality=92)" 2>/dev/null || pip install -q pillow && python3 -c "from PIL import Image; Image.open('assets/logo.png').convert('RGB').resize((640,640)).save('/tmp/logo.jpg', quality=92)"
+          r=$(curl -s -F chat_id=@svoi_egypt -F photo=@/tmp/logo.jpg "https://api.telegram.org/bot$TG/setChatPhoto")
+          echo "::notice title=photo::${r:0:200} "
+          exit 0
           sleep 60
           key=$(curl -s -H "Authorization: Bearer $SB" "https://api.supabase.com/v1/projects/pjjeypdxwnbtyqabhroi/api-keys?reveal=true" | jq -r '.[] | select(.name=="service_role") | .api_key')
           echo "::add-mask::$key"
