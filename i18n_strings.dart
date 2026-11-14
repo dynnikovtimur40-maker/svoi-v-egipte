@@ -758,4 +758,5 @@ const Map<String, List<String>> kTr = {
   'Что за скидка': ['What discount', 'Яка знижка', 'ما هو الخصم', 'Welcher Rabatt'],
   'Я гид или водитель — разместить услугу': ['I’m a guide or driver — post a service', 'Я гід або водій — розмістити послугу', 'أنا مرشد أو سائق — انشر خدمة', 'Ich bin Guide oder Fahrer — Service anbieten'],
   '−15% на всё меню': ['−15% on the whole menu', '−15% на все меню', 'خصم 15% على كل القائمة', '−15 % auf die ganze Karte'],
+  'Трансфер': ['Transfer', 'Трансфер', 'نقل', 'Transfer'],
 };

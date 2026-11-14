@@ -245,7 +245,7 @@ class TrustedScreen extends StatefulWidget {
 class _TrustedScreenState extends State<TrustedScreen> {
   int kind = 0;
 
-  static const kinds = ['Экскурсии', 'Трансфер и такси', 'Дайвинг'];
+  static const kinds = ['Экскурсии', 'Трансфер', 'Дайвинг'];
 
   bool match(Post x) {
     switch (kind) {
