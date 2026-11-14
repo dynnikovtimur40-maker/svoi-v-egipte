@@ -88,3 +88,4 @@ jobs:
             -d "url=https://$PROJECT.supabase.co/functions/v1/tg-bot" \
             -d "secret_token=$SECRET" -d 'allowed_updates=["message","callback_query"]' > wh.json
           echo "::notice title=webhook::$(head -c 300 wh.json)"
+# resend 1794665666
