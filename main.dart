@@ -4370,11 +4370,13 @@ class MyAdsScreen extends StatelessWidget {
                           ]),
                           const SizedBox(height: 12),
                           Row(children: [
-                            Expanded(
-                              child: smallBtn('Продвинуть', x.status == 'active' ? () => showPromoteSheet(context, x) : null,
-                                  primary: true),
-                            ),
-                            const SizedBox(width: 8),
+                            if (paymentsEnabled || app.isAdmin) ...[
+                              Expanded(
+                                child: smallBtn('Продвинуть', x.status == 'active' ? () => showPromoteSheet(context, x) : null,
+                                    primary: true),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
                             Expanded(
                               child: smallBtn('Изменить',
                                   () => push(context, AddPostScreen(section: x.section, edit: x))),

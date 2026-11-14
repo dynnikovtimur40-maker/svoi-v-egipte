@@ -17,3 +17,6 @@ const appLanguages = <List<String>>[
 
 // Telegram-бот проверки профиля и уведомлений.
 const telegramBot = 'svoi_egypt_bot';
+
+/// Онлайн-оплата (Paymob). Пока выключена: кнопку «Продвинуть» видит только админ.
+const paymentsEnabled = false;
