@@ -1,1 +1,1 @@
-db/schema_v9.sql
+db/cleanup_mailtest.sql
