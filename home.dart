@@ -1,4 +1,6 @@
 // Главная: быстрый доступ ко всему, курс, погода, свежие новости и объявления.
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart' hide Text;
 import 'package:flutter/widgets.dart' as w show Text;
 
@@ -71,22 +73,16 @@ class HomeTab extends StatelessWidget {
           sliver: SliverList.list(children: [
             GreetingCard(city: city, weatherCity: wc, onRates: () => openTab(4)),
             const SizedBox(height: 14),
-            // Быстрый доступ — иконки в стиле iOS на стеклянной панели
-            Glass(
-              radius: 28,
-              opacity: p.dark ? .38 : .55,
-              blur: 26,
-              padding: const EdgeInsets.fromLTRB(8, 16, 8, 6),
-              child: GridView.count(
-                crossAxisCount: 4,
-                shrinkWrap: true,
-                padding: EdgeInsets.zero,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 6,
-                crossAxisSpacing: 4,
-                childAspectRatio: .84,
-                children: [for (final a in actions) QuickIcon(icon: a.$1, label: a.$2, colors: a.$3, onTap: a.$4)],
-              ),
+            // Быстрый доступ — стеклянные иконки с цветной полоской
+            GridView.count(
+              crossAxisCount: 4,
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 4,
+              childAspectRatio: .86,
+              children: [for (final a in actions) QuickIcon(icon: a.$1, label: a.$2, colors: a.$3, onTap: a.$4)],
             ),
             // Новости
             SectionTitle('Новости', action: 'Все', onAction: () => openTab(3)),
@@ -137,12 +133,8 @@ class _QuickIconState extends State<QuickIcon> {
   @override
   Widget build(BuildContext context) {
     final p = Pal.of(context);
-    final c1 = Color(widget.colors[0]), c2 = Color(widget.colors[1]);
-    const size = 58.0;
-    final shape = ContinuousRectangleBorder(
-      borderRadius: BorderRadius.circular(size * .5),
-      side: const BorderSide(color: Color(0x40FFFFFF), width: .8),
-    );
+    final accent = Color(widget.colors[0]);
+    const size = 56.0;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapDown: (_) => setState(() => down = true),
@@ -154,32 +146,14 @@ class _QuickIconState extends State<QuickIcon> {
         duration: const Duration(milliseconds: 120),
         curve: Curves.easeOut,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: size,
-            height: size,
-            decoration: ShapeDecoration(
-              shape: shape,
-              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [c1, c2]),
-              shadows: [
-                BoxShadow(color: c2.withAlpha(p.dark ? 110 : 80), blurRadius: 16, offset: const Offset(0, 6)),
-              ],
+          GlassTile(
+            accent: accent,
+            radius: 17,
+            child: SizedBox(
+              width: size,
+              height: size,
+              child: Center(child: Ico(widget.icon, size: 25, color: p.dark ? Colors.white : p.text, stroke: 1.9)),
             ),
-            child: Stack(children: [
-              // стеклянный блик сверху
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: ShapeDecoration(
-                    shape: shape.copyWith(side: BorderSide.none),
-                    gradient: const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.center,
-                      colors: [Color(0x59FFFFFF), Color(0x00FFFFFF)],
-                    ),
-                  ),
-                ),
-              ),
-              Center(child: Ico(widget.icon, size: 27, color: Colors.white, stroke: 2.1)),
-            ]),
           ),
           const SizedBox(height: 7),
           FittedBox(
@@ -190,6 +164,40 @@ class _QuickIconState extends State<QuickIcon> {
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: p.text, letterSpacing: -.1)),
           ),
         ]),
+      ),
+    );
+  }
+}
+
+/// Тёмное стекло с цветной полоской снизу (иконки и плашки на главной).
+class GlassTile extends StatelessWidget {
+  const GlassTile({super.key, required this.child, required this.accent, this.radius = 16, this.onTap});
+  final Widget child;
+  final Color accent;
+  final double radius;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+    final br = BorderRadius.circular(radius);
+    return ClipRRect(
+      borderRadius: br,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Material(
+          color: p.dark ? const Color(0x17FFFFFF) : const Color(0x0D0B2B33),
+          shape: RoundedRectangleBorder(
+              borderRadius: br, side: BorderSide(color: p.dark ? const Color(0x2EFFFFFF) : const Color(0x1A0B2B33), width: .8)),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Stack(children: [
+              child,
+              Positioned(left: 0, right: 0, bottom: 0, child: Container(height: 3, color: accent)),
+            ]),
+          ),
+        ),
       ),
     );
   }
@@ -222,161 +230,112 @@ class GreetingCard extends StatelessWidget {
     final logged = app.user != null;
     final now = DateTime.now();
     final h = now.hour;
-    // [приветствие, значок, цвета]
-    final (hello, glyph, colors) = h < 5 || h >= 22
-        ? ('Доброй ночи', '🌙', const [Color(0xFF1E1B4B), Color(0xFF312E81), Color(0xFF0F766E)])
+    final (hello, glyph) = h < 5 || h >= 22
+        ? ('Доброй ночи', '🌙')
         : h < 12
-            ? ('Доброе утро', '🌅', const [Color(0xFFF59E0B), Color(0xFFEC4899), Color(0xFF8B5CF6)])
+            ? ('Доброе утро', '🌅')
             : h < 18
-                ? ('Добрый день', '☀️', const [Color(0xFF06B6D4), Color(0xFF0EA5E9), Color(0xFF14B8A6)])
-                : ('Добрый вечер', '🌇', const [Color(0xFFF97316), Color(0xFFDB2777), Color(0xFF6D28D9)]);
+                ? ('Добрый день', '☀️')
+                : ('Добрый вечер', '🌇');
     final l = _days.containsKey(app.lang) ? app.lang : 'en';
     final date = l == 'en' || l == 'de'
         ? '${_days[l]![now.weekday - 1]}, ${l == 'de' ? '${now.day}. ${_months[l]![now.month - 1]}' : '${_months[l]![now.month - 1]} ${now.day}'}'
         : '${_days[l]![now.weekday - 1]}, ${now.day} ${_months[l]![now.month - 1]}';
     final name = logged ? app.userName.split(' ').first : '';
-    const white = Colors.white;
-    const glassBg = Color(0x2EFFFFFF);
-    const glassLine = Color(0x40FFFFFF);
+    final fg = p.dark ? Colors.white : p.text;
+    final sub = p.dark ? const Color(0xB3FFFFFF) : p.muted;
+    const pad = EdgeInsets.symmetric(horizontal: 12, vertical: 10);
 
-    Widget chip(Widget child, {VoidCallback? onTap}) => Material(
-          color: glassBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: glassLine, width: .8)),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(onTap: onTap, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), child: child)),
-        );
-
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: colors),
-        boxShadow: [BoxShadow(color: colors[1].withAlpha(p.dark ? 90 : 70), blurRadius: 28, offset: const Offset(0, 12))],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: Stack(children: [
-          // мягкие световые пятна
-          Positioned(
-            right: -40,
-            top: -50,
-            child: Container(
-              width: 170,
-              height: 170,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(colors: [Color(0x55FFFFFF), Color(0x00FFFFFF)]),
-              ),
-            ),
-          ),
-          Positioned(
-            left: -60,
-            bottom: -70,
-            child: Container(
-              width: 180,
-              height: 180,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(colors: [Color(0x33FFFFFF), Color(0x00FFFFFF)]),
-              ),
-            ),
-          ),
-          // стеклянная рамка
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: glassLine, width: 1),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 2, 4, 0),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    w.Text(date.toUpperCase(),
-                        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, letterSpacing: 1.1, color: Color(0xD9FFFFFF))),
-                    const SizedBox(height: 6),
-                    w.Text(logged ? '${tr(hello)},' : tr('Добро пожаловать!'),
-                        style: heading(logged ? 18 : 24, weight: FontWeight.w700, color: const Color(0xF2FFFFFF))),
-                    if (logged)
-                      w.Text('$name $glyph',
-                          maxLines: 1, overflow: TextOverflow.ellipsis, style: heading(28, weight: FontWeight.w800, color: white, height: 1.15)),
-                  ]),
-                ),
-                GestureDetector(
-                  onTap: () => logged ? push(context, const ProfileScreen()) : app.setGuest(false),
-                  child: Container(
-                    padding: const EdgeInsets.all(2.5),
-                    decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0x55FFFFFF)),
-                    child: Avatar(name: logged ? app.userName : '?', url: app.profile?.avatarUrl, size: 46),
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 14),
-              Row(children: [
-                Expanded(
-                  child: chip(
-                    Row(children: [
-                      Ico('pin', size: 16, color: white),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(city,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: white)),
-                      ),
-                    ]),
-                    onTap: () => push(context, GuideCityScreen(city: weatherCity)),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FutureBuilder<List<num?>>(
-                  future: cityWeather(weatherCity),
-                  builder: (_, snap) {
-                    final d = snap.data;
-                    if (d == null || d[0] == null) return const SizedBox.shrink();
-                    return chip(
-                      Row(mainAxisSize: MainAxisSize.min, children: [
-                        w.Text('${weatherIcon(d[1])} ${d[0]!.round()}°',
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: white)),
-                        if (d[2] != null) ...[
-                          const SizedBox(width: 8),
-                          w.Text('🌊 ${d[2]!.round()}°', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: white)),
-                        ],
-                      ]),
-                      onTap: () => push(context, GuideCityScreen(city: weatherCity)),
-                    );
-                  },
-                ),
-              ]),
-              const SizedBox(height: 8),
-              chip(
-                Row(children: [
-                  for (final (i, t) in [
-                    ('\$ ${egpPerUsd.toStringAsFixed(1)}', 'EGP'),
-                    ('€ ${egpPerEur.toStringAsFixed(1)}', 'EGP'),
-                    ('${fmt(100 * rubPerEgp)} ₽', '100 EGP'),
-                  ].indexed) ...[
-                    if (i > 0) Container(width: .8, height: 26, color: glassLine, margin: const EdgeInsets.symmetric(horizontal: 8)),
-                    Expanded(
-                      child: Column(children: [
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: w.Text(t.$1, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: white)),
-                        ),
-                        w.Text(t.$2, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xCCFFFFFF))),
-                      ]),
-                    ),
-                  ],
-                ]),
-                onTap: onRates,
-              ),
+              w.Text(date.toUpperCase(), style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, letterSpacing: 1.1, color: sub)),
+              const SizedBox(height: 4),
+              w.Text(logged ? '${tr(hello)},' : tr('Добро пожаловать!'),
+                  style: heading(logged ? 26 : 28, weight: FontWeight.w800, color: fg, height: 1.12)),
+              if (logged)
+                w.Text('$name $glyph',
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: heading(30, weight: FontWeight.w800, color: fg, height: 1.12)),
             ]),
           ),
+          GestureDetector(
+            onTap: () => logged ? push(context, const ProfileScreen()) : app.setGuest(false),
+            child: Container(
+              padding: const EdgeInsets.all(2.5),
+              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.accent, width: 2)),
+              child: Avatar(name: logged ? app.userName : '?', url: app.profile?.avatarUrl, size: 48),
+            ),
+          ),
         ]),
-      ),
+        const SizedBox(height: 14),
+        Row(children: [
+          Expanded(
+            child: GlassTile(
+              accent: const Color(0xFF2DD4BF),
+              onTap: () => push(context, GuideCityScreen(city: weatherCity)),
+              child: Padding(
+                padding: pad,
+                child: Row(children: [
+                  Ico('pin', size: 16, color: fg),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(city,
+                        maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: fg)),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          FutureBuilder<List<num?>>(
+            future: cityWeather(weatherCity),
+            builder: (_, snap) {
+              final d = snap.data;
+              if (d == null || d[0] == null) return const SizedBox.shrink();
+              return GlassTile(
+                accent: const Color(0xFFFBBF24),
+                onTap: () => push(context, GuideCityScreen(city: weatherCity)),
+                child: Padding(
+                  padding: pad,
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    w.Text('${weatherIcon(d[1])} ${d[0]!.round()}°', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: fg)),
+                    if (d[2] != null) ...[
+                      const SizedBox(width: 8),
+                      w.Text('🌊 ${d[2]!.round()}°', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: fg)),
+                    ],
+                  ]),
+                ),
+              );
+            },
+          ),
+        ]),
+        const SizedBox(height: 8),
+        GlassTile(
+          accent: const Color(0xFFA78BFA),
+          onTap: onRates,
+          child: Padding(
+            padding: pad,
+            child: Row(children: [
+              for (final (i, t) in [
+                ('\$ ${egpPerUsd.toStringAsFixed(1)}', 'EGP'),
+                ('€ ${egpPerEur.toStringAsFixed(1)}', 'EGP'),
+                ('${fmt(100 * rubPerEgp)} ₽', '100 EGP'),
+              ].indexed) ...[
+                if (i > 0) Container(width: .8, height: 26, color: p.dark ? const Color(0x33FFFFFF) : p.line, margin: const EdgeInsets.symmetric(horizontal: 8)),
+                Expanded(
+                  child: Column(children: [
+                    FittedBox(fit: BoxFit.scaleDown, child: w.Text(t.$1, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: fg))),
+                    w.Text(t.$2, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: sub)),
+                  ]),
+                ),
+              ],
+            ]),
+          ),
+        ),
+      ]),
     );
   }
 }
