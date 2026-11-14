@@ -44,8 +44,9 @@ Deno.serve(async (req) => {
   if (new URL(req.url).searchParams.get("debug") === "1") {
     const out: string[] = [];
     for (const u of [
-      "https://news.google.com/rss/search?q=" + encodeURIComponent("Египет туристы") + "&hl=ru&gl=RU&ceid=RU:ru",
-      "https://news.google.com/rss/search?q=Egypt%20tourists&hl=en-US&gl=US&ceid=US:en",
+      "https://www.bing.com/news/search?q=" + encodeURIComponent("Египет туристы") + "&format=rss&setmkt=ru-RU&setlang=ru",
+      "https://www.bing.com/news/search?q=" + encodeURIComponent("Egypt tourists") + "&format=rss&setmkt=en-US",
+      "https://www.egyptindependent.com/feed/",
     ]) {
       try {
         const r = await fetch(u, { headers: { "User-Agent": "Mozilla/5.0 (compatible; SvoiVEgipteBot/1.0)" } });
