@@ -154,7 +154,7 @@ const guideCities = <GuideCity>[
       road: '30 minutes by taxi from Hurghada airport.',
     )),
   GuideCity('Шарм-эль-Шейх', 'star', 0xFF6366F1,
-    wiki: 'Sharm_El_Sheikh', lat: 27.9158, lon: 34.33, places: [GuidePlace('Рас-Мохаммед', 'Ras Muhammad', 'Ras_Muhammad_National_Park'), GuidePlace('Остров Тиран', 'Tiran Island', 'Tiran_Island'), GuidePlace('Наама-Бей', 'Naama Bay', 'Naama_Bay'), GuidePlace('Гора Моисея', 'Mount Sinai', 'Mount_Sinai'), GuidePlace('Монастырь Св. Екатерины', 'St Catherine’s Monastery', 'Saint_Catherine's_Monastery')],
+    wiki: 'Sharm_El_Sheikh', lat: 27.9158, lon: 34.33, places: [GuidePlace('Рас-Мохаммед', 'Ras Muhammad', 'Ras_Muhammad_National_Park'), GuidePlace('Остров Тиран', 'Tiran Island', 'Tiran_Island'), GuidePlace('Наама-Бей', 'Naama Bay', 'Naama_Bay'), GuidePlace('Гора Моисея', 'Mount Sinai', 'Mount_Sinai'), GuidePlace('Монастырь Св. Екатерины', 'St Catherine’s Monastery', "Saint_Catherine's_Monastery")],
     GuidePart(
       intro: 'Курорт на Синае с лучшими рифами Египта, горами и пустыней.',
       sights: [
