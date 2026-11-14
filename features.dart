@@ -2237,54 +2237,68 @@ class NewsTab extends StatelessWidget {
               itemCount: list.length,
               separatorBuilder: (_, __) => const SizedBox(height: 10),
               itemBuilder: (_, i) {
-                final n = list[i];
-                final hue = Color(_tagHue[n.tag] ?? 0xFF14B8A6);
-                return Box(
-                  padding: const EdgeInsets.all(14),
-                  onTap: () => n.auto && n.url != null ? openUrl(context, n.url!, n.url!) : push(context, NewsDetailScreen(item: n)),
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: [hue.withAlpha(p.dark ? 90 : 60), hue.withAlpha(p.dark ? 30 : 22)]),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Center(child: Ico(_tagIcon[n.tag] ?? 'news', size: 22, stroke: 1.9, color: Color.lerp(hue, p.text, .1))),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Row(children: [
-                          Text(n.tag, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color.lerp(hue, p.text, p.dark ? .25 : 0))),
-                          Flexible(
-                            child: Text('  ·  ${n.source != null ? '${n.source} · ' : ''}${agoText(n.date)}',
-                                maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: p.muted)),
-                          ),
-                          if (!n.published) Text('  ·  ${tr('черновик')}', style: TextStyle(fontSize: 12.5, color: p.warn)),
-                        ]),
-                        const SizedBox(height: 4),
-                        Text(n.title, style: heading(16, weight: FontWeight.w800, color: p.text)),
-                        const SizedBox(height: 4),
-                        if (n.body.isNotEmpty)
-                          Text(n.body, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: p.text2, height: 1.45)),
-                        if (n.auto) ...[
-                          const SizedBox(height: 2),
-                          Text('Читать полностью →', style: TextStyle(fontSize: 12.5, color: p.accent, fontWeight: FontWeight.w600)),
-                        ],
-                        if (n.auto && app.isAdmin)
-                          GestureDetector(
-                            onTap: () => editNews(context, item: n),
-                            child: Text('Изменить или скрыть (админ)', style: TextStyle(fontSize: 12, color: p.muted)),
-                          ),
-                      ]),
-                    ),
-                  ]),
-                );
+                return NewsCard(item: list[i]);
               },
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Карточка новости (лента «Новости» и главная).
+class NewsCard extends StatelessWidget {
+  const NewsCard({super.key, required this.item, this.compact = false});
+  final NewsPost item;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final app = AppScope.of(context);
+    final p = Pal.of(context);
+    final n = item;
+    final hue = Color(_tagHue[n.tag] ?? 0xFF14B8A6);
+    return Box(
+      padding: const EdgeInsets.all(14),
+      onTap: () => n.auto && n.url != null ? openUrl(context, n.url!, n.url!) : push(context, NewsDetailScreen(item: n)),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [hue.withAlpha(p.dark ? 90 : 60), hue.withAlpha(p.dark ? 30 : 22)]),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Center(child: Ico(_tagIcon[n.tag] ?? 'news', size: 22, stroke: 1.9, color: Color.lerp(hue, p.text, .1))),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Text(n.tag, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color.lerp(hue, p.text, p.dark ? .25 : 0))),
+              Flexible(
+                child: Text('  ·  ${n.source != null ? '${n.source} · ' : ''}${agoText(n.date)}',
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: p.muted)),
+              ),
+              if (!n.published) Text('  ·  ${tr('черновик')}', style: TextStyle(fontSize: 12.5, color: p.warn)),
+            ]),
+            const SizedBox(height: 4),
+            Text(n.title, style: heading(16, weight: FontWeight.w800, color: p.text)),
+            const SizedBox(height: 4),
+            if (n.body.isNotEmpty)
+              Text(n.body, maxLines: compact ? 2 : 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: p.text2, height: 1.45)),
+            if (n.auto) ...[
+              const SizedBox(height: 2),
+              Text('Читать полностью →', style: TextStyle(fontSize: 12.5, color: p.accent, fontWeight: FontWeight.w600)),
+            ],
+            if (n.auto && app.isAdmin)
+              GestureDetector(
+                onTap: () => editNews(context, item: n),
+                child: Text('Изменить или скрыть (админ)', style: TextStyle(fontSize: 12, color: p.muted)),
+              ),
+          ]),
+        ),
+      ]),
     );
   }
 }

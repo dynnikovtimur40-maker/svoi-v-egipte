@@ -15,6 +15,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'config.dart';
 import 'data.dart';
 import 'features.dart';
+import 'home.dart';
 import 'i18n.dart';
 import 'tourist.dart';
 
@@ -1663,7 +1664,7 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> {
-  int tab = 0;
+  int tab = 5; // 5 — главная
   static bool _linkHandled = false;
 
   @override
@@ -1685,12 +1686,13 @@ class _HomeShellState extends State<HomeShell> {
     });
   }
 
-  static const pages = <Widget>[
-    ListTab(section: Section.ads),
-    ListTab(section: Section.services),
-    ListTab(section: Section.jobs),
-    NewsTab(),
-    MoreTab(),
+  late final pages = <Widget>[
+    const ListTab(section: Section.ads),
+    const ListTab(section: Section.services),
+    const ListTab(section: Section.jobs),
+    const NewsTab(),
+    const MoreTab(),
+    HomeTab(openTab: (i) => setState(() => tab = i)),
   ];
 
   void openAdd() {
@@ -1861,12 +1863,22 @@ class AppDrawer extends StatelessWidget {
             SizedBox(height: mq.padding.top + 14),
             // Логотип
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(children: [
-                const AppLogo(size: 36),
-                const SizedBox(width: 10),
-                Text('Свои в Египте', style: heading(17, weight: FontWeight.w800, color: p.text)),
-              ]),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () {
+                  onSelect(5);
+                  close();
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Row(children: [
+                    const AppLogo(size: 36),
+                    const SizedBox(width: 10),
+                    Text('Свои в Египте', style: heading(17, weight: FontWeight.w800, color: p.text)),
+                  ]),
+                ),
+              ),
             ),
             const SizedBox(height: 14),
             // Карточка пользователя
@@ -1912,6 +1924,10 @@ class AppDrawer extends StatelessWidget {
             Expanded(
               child: ListView(padding: EdgeInsets.zero, children: [
                 label('Разделы'),
+                item('home', 'Главная', selected: tab == 5, onTap: () {
+                  onSelect(5);
+                  close();
+                }),
                 for (var i = 0; i < sections.length; i++)
                   item(sections[i][1], sections[i][0], selected: tab == i, onTap: () {
                     onSelect(i);
