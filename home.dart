@@ -240,95 +240,78 @@ class GreetingCard extends StatelessWidget {
         ? '${_days[l]![now.weekday - 1]}, ${l == 'de' ? '${now.day}. ${_months[l]![now.month - 1]}' : '${_months[l]![now.month - 1]} ${now.day}'}'
         : '${_days[l]![now.weekday - 1]}, ${now.day} ${_months[l]![now.month - 1]}';
     final name = logged ? app.userName.split(' ').first : '';
-    final fg = p.dark ? Colors.white : p.text;
-    final sub = p.dark ? const Color(0xB3FFFFFF) : p.muted;
-    const pad = EdgeInsets.symmetric(horizontal: 12, vertical: 10);
+    final fg = p.dark ? const Color(0xF2FFFFFF) : p.text;
+    final sub = p.dark ? const Color(0x99FFFFFF) : p.muted;
+    final line = p.dark ? const Color(0x1FFFFFFF) : p.line;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 2, 4, 0),
+    Widget rate(String big, String small) => Expanded(
+          child: Column(children: [
+            FittedBox(fit: BoxFit.scaleDown, child: w.Text(big, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: fg))),
+            const SizedBox(height: 1),
+            w.Text(small, style: TextStyle(fontSize: 10.5, color: sub)),
+          ]),
+        );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: p.dark ? const Color(0x14FFFFFF) : const Color(0xB3FFFFFF),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: p.dark ? const Color(0x24FFFFFF) : p.line, width: .8),
+      ),
+      padding: const EdgeInsets.fromLTRB(18, 16, 16, 14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              w.Text(date.toUpperCase(), style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, letterSpacing: 1.1, color: sub)),
+              w.Text(date, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: sub)),
               const SizedBox(height: 4),
-              w.Text(logged ? '${tr(hello)},' : tr('Добро пожаловать!'),
-                  style: heading(logged ? 26 : 28, weight: FontWeight.w800, color: fg, height: 1.12)),
-              if (logged)
-                w.Text('$name $glyph',
-                    maxLines: 1, overflow: TextOverflow.ellipsis, style: heading(30, weight: FontWeight.w800, color: fg, height: 1.12)),
+              w.Text(logged ? '${tr(hello)}, $name $glyph' : tr('Добро пожаловать!'),
+                  maxLines: 2, style: heading(23, weight: FontWeight.w700, color: fg, height: 1.2)),
             ]),
           ),
+          const SizedBox(width: 10),
           GestureDetector(
             onTap: () => logged ? push(context, const ProfileScreen()) : app.setGuest(false),
-            child: Container(
-              padding: const EdgeInsets.all(2.5),
-              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.accent, width: 2)),
-              child: Avatar(name: logged ? app.userName : '?', url: app.profile?.avatarUrl, size: 48),
-            ),
+            child: Avatar(name: logged ? app.userName : '?', url: app.profile?.avatarUrl, size: 46),
           ),
         ]),
-        const SizedBox(height: 14),
-        Row(children: [
-          Expanded(
-            child: GlassTile(
-              onTap: () => push(context, GuideCityScreen(city: weatherCity)),
-              child: Padding(
-                padding: pad,
-                child: Row(children: [
-                  Ico('pin', size: 16, color: fg),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(city,
-                        maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: fg)),
-                  ),
-                ]),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          FutureBuilder<List<num?>>(
-            future: cityWeather(weatherCity),
-            builder: (_, snap) {
-              final d = snap.data;
-              if (d == null || d[0] == null) return const SizedBox.shrink();
-              return GlassTile(
-                  onTap: () => push(context, GuideCityScreen(city: weatherCity)),
-                child: Padding(
-                  padding: pad,
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    w.Text('${weatherIcon(d[1])} ${d[0]!.round()}°', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: fg)),
-                    if (d[2] != null) ...[
-                      const SizedBox(width: 8),
-                      w.Text('🌊 ${d[2]!.round()}°', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: fg)),
-                    ],
-                  ]),
-                ),
-              );
-            },
-          ),
-        ]),
-        const SizedBox(height: 8),
-        GlassTile(
-          onTap: onRates,
+        const SizedBox(height: 12),
+        InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => push(context, GuideCityScreen(city: weatherCity)),
           child: Padding(
-            padding: pad,
+            padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(children: [
-              for (final (i, t) in [
-                ('\$ ${egpPerUsd.toStringAsFixed(1)}', 'EGP'),
-                ('€ ${egpPerEur.toStringAsFixed(1)}', 'EGP'),
-                ('${fmt(100 * rubPerEgp)} ₽', '100 EGP'),
-              ].indexed) ...[
-                if (i > 0) Container(width: .8, height: 26, color: p.dark ? const Color(0x33FFFFFF) : p.line, margin: const EdgeInsets.symmetric(horizontal: 8)),
-                Expanded(
-                  child: Column(children: [
-                    FittedBox(fit: BoxFit.scaleDown, child: w.Text(t.$1, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: fg))),
-                    w.Text(t.$2, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: sub)),
-                  ]),
-                ),
-              ],
+              Ico('pin', size: 15, color: sub),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(city,
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: fg)),
+              ),
+              FutureBuilder<List<num?>>(
+                future: cityWeather(weatherCity),
+                builder: (_, snap) {
+                  final d = snap.data;
+                  if (d == null || d[0] == null) return const SizedBox.shrink();
+                  return w.Text(
+                      '   ${weatherIcon(d[1])} ${d[0]!.round()}°${d[2] != null ? '   🌊 ${d[2]!.round()}°' : ''}',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: fg));
+                },
+              ),
             ]),
           ),
+        ),
+        Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Container(height: .8, color: line)),
+        InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onRates,
+          child: Row(children: [
+            rate('\$ ${egpPerUsd.toStringAsFixed(1)}', 'EGP'),
+            Container(width: .8, height: 24, color: line),
+            rate('€ ${egpPerEur.toStringAsFixed(1)}', 'EGP'),
+            Container(width: .8, height: 24, color: line),
+            rate('${fmt(100 * rubPerEgp)} ₽', '100 EGP'),
+          ]),
         ),
       ]),
     );

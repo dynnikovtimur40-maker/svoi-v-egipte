@@ -1111,7 +1111,7 @@ class Avatar extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: (url == null || url!.isEmpty)
           ? letter
-          : Image.network(url!, fit: BoxFit.cover, width: size, height: size, errorBuilder: (_, __, ___) => letter),
+          : Image.network(url!, fit: BoxFit.cover, width: size, height: size, cacheWidth: (size * 3).round(), errorBuilder: (_, __, ___) => letter),
     );
   }
 }
@@ -1786,6 +1786,7 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int tab = 5; // 5 — главная
+  final _opened = <int>{5};
   static bool _linkHandled = false;
 
   @override
@@ -1813,7 +1814,10 @@ class _HomeShellState extends State<HomeShell> {
     const ListTab(section: Section.jobs),
     const NewsTab(),
     const MoreTab(),
-    HomeTab(openTab: (i) => setState(() => tab = i)),
+    HomeTab(openTab: (i) => setState(() {
+          tab = i;
+          _opened.add(i);
+        })),
   ];
 
   void openAdd() {
@@ -1830,10 +1834,21 @@ class _HomeShellState extends State<HomeShell> {
     final p = Pal.of(context);
     return Scaffold(
       backgroundColor: p.bg,
-      drawer: AppDrawer(tab: tab, onSelect: (i) => setState(() => tab = i)),
+      drawer: AppDrawer(
+          tab: tab,
+          onSelect: (i) => setState(() {
+                tab = i;
+                _opened.add(i);
+              })),
       drawerEdgeDragWidth: 28,
       drawerScrimColor: const Color(0x73000000),
-      body: GlowBackground(child: IndexedStack(index: tab, children: pages)),
+      body: GlowBackground(
+        child: IndexedStack(index: tab, children: [
+          // вкладка строится только после первого открытия — быстрее запуск и меньше лишних перерисовок
+          for (var i = 0; i < pages.length; i++)
+            if (_opened.contains(i) || i == tab) TickerMode(enabled: i == tab, child: pages[i]) else const SizedBox.shrink(),
+        ]),
+      ),
       floatingActionButton: tab <= 2
           ? Container(
               height: 52,
@@ -2204,8 +2219,8 @@ class GlassBar extends StatelessWidget {
     final p = Pal.of(context);
     final top = MediaQuery.of(context).padding.top;
     return Glass(
-      opacity: p.dark ? .34 : .48,
-      blur: 30,
+      opacity: p.dark ? .4 : .55,
+      blur: 14,
       border: false,
       child: Container(
         decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.glassLine))),
