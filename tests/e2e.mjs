@@ -235,6 +235,15 @@ try {
   users.splice(users.findIndex((x) => x.id === D.id), 1);
   check('объявления остальных не задеты', !!dpost.data?.id, errText(dpost.error));
 
+  // --- Недвижимость
+  const rp = await newPost(B, { section: 'realty', category: 'Аренда на месяц', title: `QA студия у моря ${run}`, description: 'Светлая студия, рядом пляж и магазины',
+    city: 'Хургада', price_egp: 15000, details: { type: 'Студия', rooms: '1', area: 40, sea: 'До 500 м', furnished: true, pool: true } });
+  check('объявление о жилье публикуется с параметрами', rp.data?.status === 'active' && rp.data?.details?.rooms === '1', rp.data?.status ?? errText(rp.error));
+  const rf = await anon.from('posts').select('id, details').eq('section', 'realty').eq('details->>rooms', '1').eq('id', rp.data?.id ?? '');
+  check('поиск жилья по параметрам работает', (rf.data ?? []).length === 1, errText(rf.error));
+  const rbad = await newPost(B, { section: 'flats', category: 'X', title: `QA неверный раздел ${run}` });
+  check('неизвестный раздел отклоняется', !!rbad.error, errText(rbad.error));
+
   // --- Оплата и права
   const pay = await A.c.functions.invoke('payments', { body: { post_id: edit.data.id, product: 'vip' } });
   const payErr = pay.error ? await pay.error.context?.json?.().catch(() => ({})) : pay.data;
