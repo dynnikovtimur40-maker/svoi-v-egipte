@@ -1,1 +1,2 @@
-db/schema_v8.sql
+db/news_now.sql
+db/news_check.sql
