@@ -1,2 +1,2 @@
-db/news_now.sql
 db/news_check.sql
+# 1794650614
