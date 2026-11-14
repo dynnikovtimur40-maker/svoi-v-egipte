@@ -73,13 +73,13 @@ class HomeTab extends StatelessWidget {
             const SizedBox(height: 14),
             // Быстрый доступ — стеклянные иконки с цветной полоской
             GridView.count(
-              crossAxisCount: 4,
+              crossAxisCount: 6,
               shrinkWrap: true,
               padding: EdgeInsets.zero,
               physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 8,
-              crossAxisSpacing: 4,
-              childAspectRatio: .86,
+              mainAxisSpacing: 6,
+              crossAxisSpacing: 2,
+              childAspectRatio: .78,
               children: [for (final a in actions) QuickIcon(icon: a.$1, label: a.$2, colors: a.$3, onTap: a.$4)],
             ),
             // Новости
@@ -132,7 +132,7 @@ class _QuickIconState extends State<QuickIcon> {
   Widget build(BuildContext context) {
     final p = Pal.of(context);
     final accent = Color(widget.colors[0]);
-    const size = 56.0;
+    const size = 42.0;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapDown: (_) => setState(() => down = true),
@@ -146,20 +146,20 @@ class _QuickIconState extends State<QuickIcon> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           GlassTile(
             accent: accent,
-            radius: 17,
+            radius: 13,
             child: SizedBox(
               width: size,
               height: size,
-              child: Center(child: Ico(widget.icon, size: 25, color: p.dark ? Colors.white : p.text, stroke: 1.9)),
+              child: Center(child: Ico(widget.icon, size: 20, color: p.dark ? Colors.white : p.text, stroke: 1.9)),
             ),
           ),
-          const SizedBox(height: 7),
+          const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(widget.label,
                 maxLines: 1,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: p.text, letterSpacing: -.1)),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: p.text, letterSpacing: -.2)),
           ),
         ]),
       ),
@@ -192,7 +192,7 @@ class GlassTile extends StatelessWidget {
             onTap: onTap,
             child: Stack(children: [
               child,
-              if (accent != null) Positioned(left: 0, right: 0, bottom: 0, child: Container(height: 3, color: accent)),
+              if (accent != null) Positioned(left: 0, right: 0, bottom: 0, child: Container(height: 2.5, color: accent)),
             ]),
           ),
         ),
