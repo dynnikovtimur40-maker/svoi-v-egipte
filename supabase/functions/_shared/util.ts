@@ -50,7 +50,7 @@ export async function langOf(userId: string): Promise<string> {
 export async function sendEmail(to: string, subject: string, text: string): Promise<boolean> {
   const key = Deno.env.get("RESEND_API_KEY");
   if (!key || !to) return false;
-  const from = Deno.env.get("MAIL_FROM") ?? "Свои в Египте <onboarding@resend.dev>";
+  const from = Deno.env.get("MAIL_FROM") ?? "Свои в Египте <noreply@svoi-egypt.com>";
   const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#13262B">
     <div style="font-size:18px;font-weight:700;color:#0B6770;margin-bottom:12px">Свои в Египте</div>
     ${text.split("\n").map((l) => `<p style="margin:0 0 10px">${escapeHtml(l)}</p>`).join("")}
