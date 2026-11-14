@@ -631,4 +631,8 @@ const Map<String, List<String>> kTr = {
   'Не больше 10 подписок. Удалите ненужные в профиле.': ['No more than 10 saved searches. Delete unneeded ones in your profile.', 'Не більше 10 підписок. Видаліть зайві в профілі.', 'لا يزيد عن 10 اشتراكات. احذف غير الضروري من ملفك.', 'Höchstens 10 Abos. Löschen Sie unnötige im Profil.'],
   'Аккаунт заблокирован за нарушения': ['Account blocked for violations', 'Акаунт заблоковано за порушення', 'الحساب محظور بسبب المخالفات', 'Konto wegen Verstößen gesperrt'],
   'Новые': ['New', 'Нові', 'جديدة', 'Neu'],
+  'Бот не ответил кодом? Отправьте ему сообщением:': ['Bot didn\'t reply with a code? Send it this message:', 'Бот не відповів кодом? Надішліть йому повідомлення:', 'لم يرسل البوت رمزًا؟ أرسل له هذه الرسالة:', 'Bot hat keinen Code gesendet? Schicken Sie ihm diese Nachricht:'],
+  'Скопировано': ['Copied', 'Скопійовано', 'تم النسخ', 'Kopiert'],
+  'Скопировать': ['Copy', 'Скопіювати', 'نسخ', 'Kopieren'],
+  'Один Telegram — один профиль: если подтвердить его здесь, отметка с другого профиля снимется. Код действует 10 минут, даётся 5 попыток.': ['One Telegram — one profile: if you confirm it here, the badge is removed from the other profile. The code is valid for 10 minutes, 5 attempts.', 'Один Telegram — один профіль: якщо підтвердити його тут, позначка з іншого профілю зніметься. Код діє 10 хвилин, дається 5 спроб.', 'حساب تيليجرام واحد لملف واحد: إذا وثّقته هنا ستُزال العلامة من الملف الآخر. الرمز صالح 10 دقائق، و5 محاولات.', 'Ein Telegram — ein Profil: Wenn Sie es hier bestätigen, wird das Abzeichen vom anderen Profil entfernt. Der Code gilt 10 Minuten, 5 Versuche.'],
 };

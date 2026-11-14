@@ -38,10 +38,10 @@ const M: Record<string, Record<string, string>> = {
     ar: "رمز التوثيق الخاص بك: {c}\n\nأدخله في تطبيق «سفوي في مصر». الرمز صالح لمدة 10 دقائق.",
   },
   nocode: {
-    ru: "Это бот проверки профиля «Свои в Египте».\n\nОткройте приложение → Профиль → «Проверка профиля» и нажмите «Получить код в Telegram» — бот пришлёт код.",
-    en: "This is the Svoi in Egypt verification bot.\n\nOpen the app → Profile → “Profile verification” and tap “Get code in Telegram” — the bot will send you a code.",
-    uk: "Це бот перевірки профілю «Свої в Єгипті».\n\nВідкрийте застосунок → Профіль → «Перевірка профілю» і натисніть «Отримати код у Telegram» — бот надішле код.",
-    ar: "هذا بوت توثيق الملف في «سفوي في مصر».\n\nافتح التطبيق ← الملف الشخصي ← «توثيق الملف» واضغط «احصل على الرمز في تيليجرام» — سيرسل لك البوت رمزًا.",
+    ru: "Это бот проверки профиля «Свои в Египте».\n\nОткройте приложение → Профиль → «Проверка профиля» и нажмите «Получить код в Telegram» — бот пришлёт код.\n\nЕсли приложение показывает 8-значный код-ссылку (например, A1B2C3D4), просто отправьте его сюда сообщением.",
+    en: "This is the Svoi in Egypt verification bot.\n\nOpen the app → Profile → “Profile verification” and tap “Get code in Telegram” — the bot will send you a code.\n\nIf the app shows an 8-character link code (e.g. A1B2C3D4), just send it here as a message.",
+    uk: "Це бот перевірки профілю «Свої в Єгипті».\n\nВідкрийте застосунок → Профіль → «Перевірка профілю» і натисніть «Отримати код у Telegram» — бот надішле код.\n\nЯкщо застосунок показує 8-значний код-посилання (наприклад, A1B2C3D4), просто надішліть його сюди.",
+    ar: "هذا بوت توثيق الملف في «سفوي في مصر».\n\nافتح التطبيق ← الملف الشخصي ← «توثيق الملف» واضغط «احصل على الرمز في تيليجرام» — سيرسل لك البوت رمزًا.\n\nإذا عرض التطبيق رمز ربط من 8 خانات (مثل A1B2C3D4) فأرسله هنا كرسالة.",
   },
   badcode: {
     ru: "Ссылка устарела или уже использована. Откройте её заново из приложения: Профиль → «Проверка профиля».",
@@ -49,11 +49,11 @@ const M: Record<string, Record<string, string>> = {
     uk: "Посилання застаріло або вже використане. Відкрийте його знову із застосунку: Профіль → «Перевірка профілю».",
     ar: "الرابط منتهٍ أو مستخدم. افتحه مجددًا من التطبيق: الملف الشخصي ← «توثيق الملف».",
   },
-  taken: {
-    ru: "Этот Telegram уже привязан к другому профилю. Один Telegram — один профиль.",
-    en: "This Telegram account is already linked to another profile. One Telegram — one profile.",
-    uk: "Цей Telegram уже прив'язаний до іншого профілю. Один Telegram — один профіль.",
-    ar: "حساب تيليجرام هذا مرتبط بملف آخر بالفعل. حساب واحد لملف واحد.",
+  moved: {
+    ru: "Внимание: этот Telegram уже подтверждал другой профиль. После ввода кода отметка «Проверен» перейдёт на новый профиль, а со старого снимется.",
+    en: "Note: this Telegram already verified another profile. After you enter the code, the “Verified” badge moves to the new profile.",
+    uk: "Увага: цей Telegram уже підтверджував інший профіль. Після введення коду позначка перейде на новий профіль.",
+    ar: "تنبيه: هذا الحساب وثّق ملفًا آخر من قبل. بعد إدخال الرمز ستنتقل علامة «موثّق» إلى الملف الجديد.",
   },
   verified: {
     ru: "Готово! Ваш профиль проверен ✅",
@@ -224,14 +224,16 @@ async function notifyMatch(postId: string) {
 
 // ---------- Проверка профиля ----------
 
+async function log(kind: string, detail: string) {
+  try {
+    await db().from("bot_log").insert({ kind, detail: detail.slice(0, 500) });
+  } catch (_) { /* журнал не обязателен */ }
+}
+
 async function sendCode(chat: number, from: Record<string, unknown>, v: Record<string, unknown>) {
   const base = db();
   const l = String(from?.language_code ?? "ru");
   const { data: other } = await base.from("profiles").select("id").eq("tg_id", chat).neq("id", v.user_id as string).maybeSingle();
-  if (other) {
-    await tg("sendMessage", { chat_id: chat, text: msg("taken", l) });
-    return;
-  }
   const code = otp();
   await base.from("verifications").update({
     otp: code,
@@ -242,7 +244,8 @@ async function sendCode(chat: number, from: Record<string, unknown>, v: Record<s
     status: "sent",
     updated_at: new Date().toISOString(),
   }).eq("id", v.id as number);
-  await tg("sendMessage", { chat_id: chat, text: msg("code", l, code) });
+  const r = await tg("sendMessage", { chat_id: chat, text: msg("code", l, code) + (other ? "\n\n" + msg("moved", l) : "") });
+  await log("code", `chat=${chat} v=${v.id} ok=${r?.ok} ${r?.description ?? ""}`);
 }
 
 Deno.serve(async (req) => {
@@ -325,8 +328,11 @@ Deno.serve(async (req) => {
     const l = String(m.from?.language_code ?? "ru");
     const text = typeof m.text === "string" ? m.text.trim() : "";
 
-    if (text.startsWith("/start")) {
-      const code = (text.split(/\s+/)[1] ?? "").trim().toUpperCase();
+    await log("msg", `chat=${chat} text=${text.slice(0, 40)}`);
+    // код-ссылку можно прислать и обычным сообщением (если Telegram не передал её через «Старт»)
+    const plain = /^[A-Fa-f0-9]{8}$/.test(text) ? text : "";
+    if (text.startsWith("/start") || plain) {
+      const code = (plain || (text.split(/\s+/)[1] ?? "")).trim().toUpperCase();
       if (code) {
         const { data: v } = await base.from("verifications").select("*").eq("code", code).in("status", ["new", "sent"]).maybeSingle();
         if (!v) {

@@ -208,6 +208,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
   bool checking = false;
   bool started = false;
   bool opened = false;
+  String? linkCode;
   final code = TextEditingController();
   String? err;
 
@@ -236,6 +237,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
     try {
       final url = await app.verificationLink();
       if (!mounted) return;
+      setState(() => linkCode = Uri.tryParse(url)?.queryParameters['start']);
       await openUrl(context, url, url);
       if (mounted) setState(() => opened = true);
     } catch (e) {
@@ -263,6 +265,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
         'locked': 'Слишком много попыток. Получите новый код в боте.',
         'none': 'Сначала нажмите «Получить код в Telegram».',
         'taken': 'Этот Telegram уже привязан к другому профилю.',
+
       };
       if (r == 'ok') {
         code.clear();
@@ -344,6 +347,29 @@ class _VerifyScreenState extends State<VerifyScreen> {
         step('3', 'Вернитесь сюда и введите код.'),
         const SizedBox(height: 8),
         PrimaryButton(sent ? 'Получить новый код' : 'Получить код в Telegram', icon: 'send', busy: busy, onPressed: openBot),
+        if (linkCode != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: p.soft, borderRadius: BorderRadius.circular(14), border: Border.all(color: p.line)),
+            child: Row(children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Бот не ответил кодом? Отправьте ему сообщением:', style: TextStyle(fontSize: 12.5, color: p.muted, height: 1.35)),
+                  const SizedBox(height: 4),
+                  SelectableText(linkCode!, style: heading(20, weight: FontWeight.w800, color: p.text)),
+                ]),
+              ),
+              TextButton(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: linkCode!));
+                  toast(context, 'Скопировано');
+                },
+                child: Text('Скопировать', style: TextStyle(color: p.accent, fontWeight: FontWeight.w600)),
+              ),
+            ]),
+          ),
+        ],
         const SizedBox(height: 16),
         Field(
           label: 'Код из бота',
@@ -362,7 +388,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(color: p.infobg, borderRadius: BorderRadius.circular(14)),
-          child: Text('Один Telegram можно привязать только к одному профилю. Код действует 10 минут, даётся 5 попыток.',
+          child: Text('Один Telegram — один профиль: если подтвердить его здесь, отметка с другого профиля снимется. Код действует 10 минут, даётся 5 попыток.',
               style: TextStyle(fontSize: 12.5, color: p.info, height: 1.45)),
         ),
       ]);

@@ -1,1 +1,1 @@
-db/schema_v6.sql
+db/schema_v7.sql

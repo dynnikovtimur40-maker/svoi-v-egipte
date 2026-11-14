@@ -176,8 +176,15 @@ try {
   check('отметка видна в объявлениях (для фильтра «Только проверенные»)', true, JSON.stringify(postV));
   const { data: codeC } = await C.c.rpc('start_verification');
   await tgUpdate({ update_id: 2, message: { message_id: 2, chat: { id: chatId, type: 'private' }, from: { id: chatId, username: 'qa_tester', language_code: 'ru' }, text: '/start ' + codeC } });
-  const takenC = await C.c.rpc('confirm_verification', { p_code: vrow.otp });
-  check('один Telegram — один профиль', takenC.data === 'none', takenC.data);
+  const { data: vC } = await admin.from('verifications').select('otp, status').eq('code', codeC).single();
+  const movedC = await C.c.rpc('confirm_verification', { p_code: vC?.otp });
+  const { data: pb2 } = await admin.from('profiles').select('verified').eq('id', B.id).single();
+  const { data: pc2 } = await admin.from('profiles').select('verified').eq('id', C.id).single();
+  check('один Telegram — один профиль: отметка переносится', movedC.data === 'ok' && pb2?.verified === false && pc2?.verified === true, `${movedC.data} B=${pb2?.verified} C=${pc2?.verified}`);
+  const { data: codeB2 } = await B.c.rpc('start_verification');
+  await tgUpdate({ update_id: 9, message: { message_id: 9, chat: { id: chatId, type: 'private' }, from: { id: chatId, language_code: 'ru' }, text: codeB2 } });
+  const { data: vB2 } = await admin.from('verifications').select('otp, status').eq('code', codeB2).single();
+  check('код-ссылку можно прислать боту обычным сообщением', /^\d{6}$/.test(vB2?.otp ?? '') && vB2?.status === 'sent', JSON.stringify(vB2));
   const { data: codeD } = await D.c.rpc('start_verification');
   const chatD = chatId + 1;
   await tgUpdate({ update_id: 3, message: { message_id: 3, chat: { id: chatD, type: 'private' }, from: { id: chatD, language_code: 'en' }, text: '/start ' + codeD } });
