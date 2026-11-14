@@ -14,7 +14,7 @@ jobs:
           TG: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           SB: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          r=$(curl -s -F chat_id=@svoi_egypt -F photo=@assets/channel.jpg "https://api.telegram.org/bot$TG/setChatPhoto")
+          r=$(curl -s --form-string chat_id=@svoi_egypt -F photo=@assets/channel.jpg "https://api.telegram.org/bot$TG/setChatPhoto")
           echo "::notice title=photo::${r:0:200} "
           exit 0
           sleep 60
