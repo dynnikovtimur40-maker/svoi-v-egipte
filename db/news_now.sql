@@ -1,1 +1,1 @@
-select net.http_post(url := 'https://pjjeypdxwnbtyqabhroi.supabase.co/functions/v1/news-sync?force=1', body := '{}'::jsonb, headers := '{"Content-Type": "application/json"}'::jsonb, timeout_milliseconds := 60000);
+select net.http_post(url := 'https://pjjeypdxwnbtyqabhroi.supabase.co/functions/v1/news-sync?debug=1', body := '{}'::jsonb, headers := '{"Content-Type": "application/json"}'::jsonb, timeout_milliseconds := 30000) as id;

@@ -41,6 +41,22 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const base = db();
   const force = new URL(req.url).searchParams.get("force") === "1";
+  if (new URL(req.url).searchParams.get("debug") === "1") {
+    const out: string[] = [];
+    for (const u of [
+      "https://news.google.com/rss/search?q=" + encodeURIComponent("Египет туристы") + "&hl=ru&gl=RU&ceid=RU:ru",
+      "https://news.google.com/rss/search?q=Egypt%20tourists&hl=en-US&gl=US&ceid=US:en",
+    ]) {
+      try {
+        const r = await fetch(u, { headers: { "User-Agent": "Mozilla/5.0 (compatible; SvoiVEgipteBot/1.0)" } });
+        const t = await r.text();
+        out.push(`${r.status} len=${t.length} items=${t.split("<item>").length - 1} head=${t.slice(0, 160)} item=${(t.split("<item>")[1] ?? "").slice(0, 500)}`);
+      } catch (e) {
+        out.push(String(e));
+      }
+    }
+    return json({ debug: out });
+  }
 
   // не чаще раза в 20 минут
   const { data: last } = await base.from("bot_log").select("created_at").eq("kind", "news-sync")
