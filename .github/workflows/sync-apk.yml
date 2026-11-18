@@ -1,0 +1,34 @@
+name: Sync APK for old links
+
+# Старые версии приложения проверяют обновления по адресу
+# github.com/dynnikovtimur40-maker/svoi-v-egipte/releases/download/apk/...
+# Раз в час копируем сюда актуальный APK с app.svoi-egypt.com.
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Copy APK if a new build appeared
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SITE: https://app.svoi-egypt.com/apk
+        run: |
+          set -e
+          curl -fsSL "$SITE/apk.json?t=$(date +%s)" -o new.json
+          old=$(curl -fsSL "https://github.com/$GITHUB_REPOSITORY/releases/download/apk/apk.json" 2>/dev/null || echo '{}')
+          echo "site: $(cat new.json)  release: $old"
+          if [ "$(cat new.json)" = "$old" ]; then echo "up to date"; exit 0; fi
+          curl -fsSL "$SITE/svoi-v-egipte.apk" -o svoi-v-egipte.apk
+          curl -fsSL "$SITE/svoi-v-egipte-old.apk" -o svoi-v-egipte-old.apk
+          cp new.json apk.json
+          gh release view apk -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create apk -R "$GITHUB_REPOSITORY" --title "Свои в Египте для Android" \
+              --notes "Свежая версия всегда на https://app.svoi-egypt.com"
+          gh release upload apk -R "$GITHUB_REPOSITORY" svoi-v-egipte.apk svoi-v-egipte-old.apk apk.json --clobber
