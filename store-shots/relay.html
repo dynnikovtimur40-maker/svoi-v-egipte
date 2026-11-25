@@ -7,7 +7,8 @@
     const b = await (await fetch(n, { cache: 'no-store' })).blob();
     out.push({ name: n, blob: b });
   }
-  if (window.opener) window.opener.postMessage({ storeShots: out }, 'https://console.rustore.ru');
+  const t = window.opener || (window.parent !== window ? window.parent : null);
+  if (t) t.postMessage({ storeShots: out }, 'https://console.rustore.ru');
   document.body.textContent = 'sent ' + out.length;
 })();
 </script>
